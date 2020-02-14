@@ -15,7 +15,7 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import cross_val_score
 
 #---------------------------------------------------------------------------
-# Global Variables
+# Globals
 #---------------------------------------------------------------------------
 #
 CATEGORY_NUM = {
@@ -34,8 +34,6 @@ CATEGORY_NAME = {
     4 : '20s_male',
     5 : '30s_male',
 }
-FILENAMES_FILE = '../en_filenames.txt'
-NUM_AUTHORS = 500
 
 
 #---------------------------------------------------------------------------
@@ -82,7 +80,7 @@ def grabAuthorText(author_file_path):
     return html2text.text.lower()
 
 #
-def grabAuthors(num_authors):
+def grabAuthors(num_authors, data_path, filenames_path):
     authors = {
         'id'       : [],
         'category' : [],
@@ -91,7 +89,7 @@ def grabAuthors(num_authors):
         'len_text' : [],
     }
 
-    author_filenames = open(join(DATAPATH, FILENAMES_FILE))
+    author_filenames = open(filenames_path)
 
     print('Getting Authors...')
     for file_num, author_file in enumerate(author_filenames):
@@ -101,7 +99,7 @@ def grabAuthors(num_authors):
             print(f'getting authors {file_num} to {file_num +999}')
 
         author_file = author_file[:-1]
-        author_file_path = join(DATAPATH, author_file)
+        author_file_path = join(data_path, author_file)
         file_no_ext, file_ext = splitext(author_file)
 
         info_from_filename = file_no_ext.split('_', 2)
@@ -173,6 +171,20 @@ def cross_validate_model(model, X_train, y_train):
     print(f'The cross validation scores are: {scores}')
     print(f'The average cross validation score is: {average_score}')
 
+#
+def grabArguments():
+    if len(sys.argv) < 3:
+        print(
+            'Please pass the data path followed by the path the to file '
+            'containing the number of filenames to be used.'
+        )
+        sys.exit(0)
+
+    data_path = sys.argv[1]
+    filenames_path = sys.argv[2]
+
+    return data_path, filenames_path
+
 
 #---------------------------------------------------------------------------
 # Main
@@ -180,14 +192,8 @@ def cross_validate_model(model, X_train, y_train):
 #
 if __name__ == '__main__':
 
-    DATAPATH = '/home/hugo/ln/ip/data/training/en'
-    if len(sys.argv) < 2:
-        print('Please pass the data path.')
-        sys.exit(0)
-
-    DATAPATH = sys.argv[1]
-
-    authors = grabAuthors(100)
+    data_path, filenames_path = grabArguments()
+    authors = grabAuthors(100, data_path, filenames_path)
 
     #vectorizer, vectors = vectorizeText(authors['text'])
     #reducer, vectors_reduced = reduceDimensionality(vectors, 300)
