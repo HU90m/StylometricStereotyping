@@ -22,5 +22,4 @@ all: $(BINDIR)/simulator
 run:
 	$(BINDIR)/simulator
 
-.PHONEY=all clean simulate visualise
-.DEFAULT_GOAL=all
+.PHONEY=all clean
