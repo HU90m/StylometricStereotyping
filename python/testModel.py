@@ -1,9 +1,8 @@
 import sys
-from os import listdir
+import os
 from os.path import isfile, join, splitext
 
-from xml.etree import ElementTree
-from html.parser import HTMLParser
+import pandas as pd
 
 from sklearn.decomposition import TruncatedSVD
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -37,91 +36,22 @@ CATEGORY_NAME = {
 
 
 #---------------------------------------------------------------------------
-# Classes
-#---------------------------------------------------------------------------
-#
-class HTML2Text(HTMLParser):
-    """Removes HTML tags from strings
-    """
-    _text = ''
-
-    def handle_endtag(self, tag):
-        #if tag == 'br':
-        #    self.text += '\n'
-        #else:
-        #    self.text += ' '
-        self._text += ' '
-
-    def handle_data(self, data):
-        self._text += data
-
-    @property
-    def text(self):
-        return self._text
-
-
-#---------------------------------------------------------------------------
 # Functions
 #---------------------------------------------------------------------------
 #
-def grabAuthorText(author_file_path):
-    html2text = HTML2Text()
+def grabAuthors(csv_path, num_files=1e10):
 
-    tree = ElementTree.parse(
-        author_file_path,
-        parser=ElementTree.XMLParser(encoding="utf-8"),
-    )
-    root = tree.getroot()
-    conversations = root[0]
+    if num_files <= 0:
+        print('You must want at least one file to call grabAuthors.')
+        return None
 
-    for conversation in conversations:
-        html2text.feed(conversation.text)
-
-    return html2text.text.lower()
-
-#
-def grabAuthors(num_authors, data_path, filenames_path):
-    authors = {
-        'id'       : [],
-        'category' : [],
-        'filename' : [],
-        'text'     : [],
-        'len_text' : [],
-    }
-
-    author_filenames = open(filenames_path)
-
-    print('Getting Authors...')
-    for file_num, author_file in enumerate(author_filenames):
-        if file_num > num_authors:
+    data_frames = []
+    for csv_file_num, csv_file in enumerate(os.listdir(csv_path)):
+        if csv_file_num == num_files:
             break
-        if not file_num % 1000:
-            print(f'getting authors {file_num} to {file_num +999}')
+        data_frames.append(pd.read_csv(join(csv_path, csv_file), header=None))
 
-        author_file = author_file[:-1]
-        author_file_path = join(data_path, author_file)
-        file_no_ext, file_ext = splitext(author_file)
-
-        info_from_filename = file_no_ext.split('_', 2)
-
-        if isfile(author_file_path) and (file_ext == '.xml'):
-            try:
-                author_text = grabAuthorText(author_file_path)
-
-                authors['id'].append(int(info_from_filename[0], 16))
-                authors['category'].append(CATEGORY_NUM[info_from_filename[2]])
-                authors['filename'].append(author_file)
-                authors['text'].append(author_text)
-                authors['len_text'].append(len(author_text))
-
-            except TypeError:
-                print(f'Type error when Author with id {info_from_filename[0]} '
-                    'was being processed.')
-                print('Skipping this author.')
-        else:
-            print(f'{author_file_path} is not an xml file!')
-    author_filenames.close()
-    return authors
+    return pd.concat(data_frames, ignore_index=True)
 
 #
 def vectorizeText(texts):
@@ -173,17 +103,14 @@ def cross_validate_model(model, X_train, y_train):
 
 #
 def grabArguments():
-    if len(sys.argv) < 3:
+    if len(sys.argv) < 2:
         print(
-            'Please pass the data path followed by the path the to file '
-            'containing the number of filenames to be used.'
+            'Please pass the directory containing the author text CSV files.'
         )
         sys.exit(0)
 
-    data_path = sys.argv[1]
-    filenames_path = sys.argv[2]
-
-    return data_path, filenames_path
+    csv_path = sys.argv[1]
+    return csv_path
 
 
 #---------------------------------------------------------------------------
@@ -191,19 +118,21 @@ def grabArguments():
 #---------------------------------------------------------------------------
 #
 if __name__ == '__main__':
+    NUM_FILES = 2
+    NUM_DATAPOINTS = 500
 
-    data_path, filenames_path = grabArguments()
-    authors = grabAuthors(100, data_path, filenames_path)
+    csv_path = grabArguments()
+    data_frame = grabAuthors(csv_path, num_files=2)
 
-    #vectorizer, vectors = vectorizeText(authors['text'])
+    vectorizer, vectors = vectorizeText(data_frame.iloc[:, 3])
     #reducer, vectors_reduced = reduceDimensionality(vectors, 300)
 
     binary_categories = []
-    for idx, item in enumerate(authors['category']):
+    for idx, item in enumerate(data_frame.iloc[:, 0]):
         binary_categories.append(
             1 if item > 2 else 0
         )
 
     model = LinearSVC(random_state=42)
 
-    #cross_validate_model(model, vectors, binary_categories)
+    cross_validate_model(model, vectors, binary_categories)
