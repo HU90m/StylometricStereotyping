@@ -2,7 +2,7 @@ import sys
 import os
 from os.path import isfile, join, splitext
 
-from multiprocessing import Pool, Lock
+from multiprocessing import Process, Manager
 
 import csv
 
@@ -32,7 +32,7 @@ CATEGORY_NAME = {
 }
 BATCH_SIZE = 10000
 NUM_AUTHORS = 1e20
-NUM_PROCESSES = 8
+MULTIPROCESSING = True
 
 
 #---------------------------------------------------------------------------
@@ -74,7 +74,10 @@ def grabAuthorText(author_file_path):
     conversations = root[0]
 
     for conversation in conversations:
-        html2text.feed(conversation.text)
+        if isinstance(conversation.text, str):
+            html2text.feed(conversation.text)
+        else:
+            return False
 
     return html2text.text.lower()
 
@@ -105,18 +108,18 @@ def createCSVFile(
         info_from_filename = file_no_ext.split('_', 2)
 
         if isfile(author_file_path) and (file_ext == '.xml'):
-            try:
-                author_text = grabAuthorText(author_file_path)
+            author_text = grabAuthorText(author_file_path)
+            if author_text:
                 csv_writer.writerow([
                     CATEGORY_NUM[info_from_filename[2]], # Category Number
                     info_from_filename[2],               # Category
                     info_from_filename[0],               # Author ID
                     author_text,                         # Text
                 ])
-            except TypeError:
+            else:
                 with print_lock:
                     print(
-                        'Type error when processing Author:\n'
+                        'Author had NoneType in conversation:\n'
                         f'\tid: {info_from_filename[0]}\n'
                         f'\tfile: {author_file_path}'
                     )
@@ -129,32 +132,53 @@ def createCSVFile(
     with print_lock:
         print(f'Finished making \'{csv_file_name}\'.')
 
+
 #
 def grabAuthors(csv_path, xml_path, print_lock):
 
     with print_lock:
         print('Getting Authors...')
-    author_files = os.listdir(data_path)
 
-    file_num = 0
-    running = True
-    while running:
-        if file_num > len(author_files):
-            running = False
-        else:
-            if file_num +BATCH_SIZE > len(author_files):
-                xml_file_names = author_files[file_num :]
-            else:
-                xml_file_names = author_files[file_num : file_num +BATCH_SIZE]
+    xml_file_names = os.listdir(xml_path)
+    len_xml_file_names = len(xml_file_names)
 
-            createCSVFile(
-                xml_path,
-                xml_file_names,
-                csv_path,
-                f'Authors_{file_num :06d}-{file_num +BATCH_SIZE -1 :06d}.csv',
-                print_lock
+    arg_list = []
+
+    num_csv_files = (len_xml_file_names // BATCH_SIZE) + 1
+
+    for idx in range(0, num_csv_files -1):
+        start_idx = idx*BATCH_SIZE
+        end_idx   = idx*BATCH_SIZE +BATCH_SIZE -1
+        arg_list.append((
+            xml_path,
+            xml_file_names[start_idx:end_idx],
+            csv_path,
+            f'Authors_{start_idx :06d}-{end_idx :06d}.csv',
+            print_lock
+        ))
+
+    start_idx = (num_csv_files -1)*BATCH_SIZE
+    arg_list.append((
+        xml_path,
+        xml_file_names[start_idx : len_xml_file_names],
+            csv_path,
+            f'Authors_{start_idx :06d}-{len_xml_file_names :06d}.csv',
+            print_lock
+    ))
+
+    if MULTIPROCESSING:
+        processes = []
+        for idx, arguments in enumerate(arg_list):
+            processes.append(
+                Process(target=createCSVFile, args=arguments)
             )
-            file_num += BATCH_SIZE
+            processes[idx].start()
+
+        for process in processes:
+            process.join()
+    else:
+        for arguments in arg_list:
+            createCSVFile(*arguments)
 
 #
 def grabArguments():
@@ -177,7 +201,8 @@ def grabArguments():
 #---------------------------------------------------------------------------
 #
 if __name__ == '__main__':
-    print_lock = Lock()
+    manager = Manager()
+    print_lock = manager.Lock()
 
     output_path, data_path = grabArguments()
     grabAuthors(output_path, data_path, print_lock)
