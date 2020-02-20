@@ -83,16 +83,18 @@ def grabAuthorText(author_file_path):
 
 #
 def createCSVFile(
-    xml_file_path,
+    xml_path,
     xml_file_names,
-    csv_file_path,
-    csv_file_name,
+    csv_path,
+    csv_file_prefix,
     print_lock
 ):
+    category_counts = [0, 0, 0, 0, 0, 0]
+
+    csv_file_name = csv_file_prefix + '.csv'
     with print_lock:
         print(f'Making \'{csv_file_name}\'.')
-
-    csv_file_location = join(csv_file_path, csv_file_name)
+    csv_file_location = join(csv_path, csv_file_name)
     csv_file = open(csv_file_location, 'w')
     csv_writer = csv.writer(
         csv_file,
@@ -102,35 +104,54 @@ def createCSVFile(
     )
     for file_num, author_file in enumerate(xml_file_names):
 
-        author_file_path = join(xml_file_path, author_file)
+        author_file_location = join(xml_path, author_file)
         file_no_ext, file_ext = splitext(author_file)
 
         info_from_filename = file_no_ext.split('_', 2)
 
-        if isfile(author_file_path) and (file_ext == '.xml'):
-            author_text = grabAuthorText(author_file_path)
+        if isfile(author_file_location) and (file_ext == '.xml'):
+            author_text = grabAuthorText(author_file_location)
             if author_text:
+                category_num = CATEGORY_NUM[info_from_filename[2]]
                 csv_writer.writerow([
-                    CATEGORY_NUM[info_from_filename[2]], # Category Number
-                    info_from_filename[2],               # Category
-                    info_from_filename[0],               # Author ID
-                    author_text,                         # Text
+                    category_num,          # Category Number
+                    info_from_filename[2], # Category
+                    info_from_filename[0], # Author ID
+                    author_text,           # Text
                 ])
+                category_counts[category_num] += 1
             else:
                 with print_lock:
                     print(
                         'Author had NoneType in conversation:\n'
                         f'\tid: {info_from_filename[0]}\n'
-                        f'\tfile: {author_file_path}'
+                        f'\tfile: {author_file_location}'
                     )
                     print('Skipping this author.')
         else:
             with print_lock:
-                print(f'{author_file_path} is not an xml file!')
+                print(f'{author_file_location} is not an xml file!')
     csv_file.close()
 
     with print_lock:
         print(f'Finished making \'{csv_file_name}\'.')
+
+    csv_file_name_with_info = csv_file_prefix
+    for category_count in category_counts:
+        csv_file_name_with_info += '_' + str(category_count)
+    csv_file_name_with_info += '.csv'
+    csv_file_location_with_info = join(csv_path, csv_file_name_with_info)
+    os.rename(
+        csv_file_location,
+        csv_file_location_with_info,
+    )
+
+    with print_lock:
+        print(
+            f'Moved \'{csv_file_name}\' to',
+            f'\'{csv_file_location_with_info}\'.',
+        )
+
 
 
 #
@@ -153,7 +174,7 @@ def grabAuthors(csv_path, xml_path, print_lock):
             xml_path,
             xml_file_names[start_idx:end_idx],
             csv_path,
-            f'Authors_{start_idx :06d}-{end_idx :06d}.csv',
+            f'Authors_{start_idx :06d}-{end_idx :06d}',
             print_lock
         ))
 
@@ -162,7 +183,7 @@ def grabAuthors(csv_path, xml_path, print_lock):
         xml_path,
         xml_file_names[start_idx : len_xml_file_names],
             csv_path,
-            f'Authors_{start_idx :06d}-{len_xml_file_names :06d}.csv',
+            f'Authors_{start_idx :06d}-{len_xml_file_names :06d}',
             print_lock
     ))
 
@@ -185,13 +206,13 @@ def grabArguments():
     if len(sys.argv) < 3:
         print(
             'Please pass the following in order:\n'
-            '\tThe path in which to place the CSV files.\n'
             '\tThe path in which the xml data is.'
+            '\tThe path in which to place the CSV files.\n'
         )
         sys.exit(0)
 
-    output_path = sys.argv[1]
-    data_path = sys.argv[2]
+    data_path = sys.argv[1]
+    output_path = sys.argv[2]
 
     return output_path, data_path
 

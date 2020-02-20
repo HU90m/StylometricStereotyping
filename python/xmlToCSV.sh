@@ -7,4 +7,4 @@ cd $HOME/stylometricStereotyping/python
 
 module load python/3.7.3
 
-python3 xmlToCSV.py /scratch/hm6g17/data/training-csv-2 /scratch/hm6g17/data/training/en/
+python3 xmlToCSV.py /scratch/hm6g17/data/training/en/ /scratch/hm6g17/data/training_csv
