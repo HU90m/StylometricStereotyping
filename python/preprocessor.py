@@ -9,6 +9,8 @@ import csv
 from xml.etree import ElementTree
 from html.parser import HTMLParser
 
+import re
+
 
 #---------------------------------------------------------------------------
 # Globals
@@ -33,6 +35,7 @@ CATEGORY_NAME = {
 BATCH_SIZE = 10000
 NUM_AUTHORS = 1e20
 MULTIPROCESSING = True
+KEEP_EXPRESSION = '[\w ]+'
 
 
 #---------------------------------------------------------------------------
@@ -63,7 +66,10 @@ class HTML2Text(HTMLParser):
 # Functions
 #---------------------------------------------------------------------------
 #
-def grabAuthorText(author_file_path):
+def grabAuthorText(
+    author_file_path,
+    keep_expr,
+):
     html2text = HTML2Text()
 
     tree = ElementTree.parse(
@@ -79,7 +85,7 @@ def grabAuthorText(author_file_path):
         else:
             return False
 
-    return html2text.text.lower()
+    return ''.join(keep_expr.findall(html2text.text.lower()))
 
 #
 def createCSVFile(
@@ -90,6 +96,7 @@ def createCSVFile(
     print_lock
 ):
     category_counts = [0, 0, 0, 0, 0, 0]
+    keep_expression = re.compile(KEEP_EXPRESSION)
 
     csv_file_name = csv_file_prefix + '.csv'
     with print_lock:
@@ -110,7 +117,10 @@ def createCSVFile(
         info_from_filename = file_no_ext.split('_', 2)
 
         if isfile(author_file_location) and (file_ext == '.xml'):
-            author_text = grabAuthorText(author_file_location)
+            author_text = grabAuthorText(
+                author_file_location,
+                keep_expression,
+            )
             if author_text:
                 category_num = CATEGORY_NUM[info_from_filename[2]]
                 csv_writer.writerow([
