@@ -3,15 +3,15 @@ import os
 from os.path import isfile, join, splitext
 
 import pandas as pd
+import numpy as np
+
+from scipy import sparse
 
 from sklearn.decomposition import TruncatedSVD
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.pipeline import FeatureUnion
 
-from sklearn.svm import LinearSVC
 
-from sklearn.model_selection import StratifiedKFold
-from sklearn.model_selection import cross_val_score
 
 #---------------------------------------------------------------------------
 # Globals
@@ -59,7 +59,7 @@ def vectorizeText(texts):
     word_vectorizer = TfidfVectorizer(
         analyzer='word',
         ngram_range=(1, 3),
-        min_df=2,
+        min_df=0.01,# ignore terms in only 1% of documents
         use_idf=True,
         sublinear_tf=True,
     )
@@ -67,7 +67,7 @@ def vectorizeText(texts):
     char_vectorizer = TfidfVectorizer(
         analyzer='char',
         ngram_range=(3, 5),
-        min_df=2,
+        min_df=0.01,# ignore terms in only 1% of documents
         use_idf=True,
         sublinear_tf=True,
     )
@@ -90,27 +90,21 @@ def reduceDimensionality(vectors, num_dimensions):
     vectors_reduced = svd.fit_transform(vectors)
     return svd, vectors_reduced
 
-
-#
-def cross_validate_model(model, X_train, y_train):
-    # Build a stratified k-fold cross-validator object
-    skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
-
-    scores = cross_val_score(model, X_train, y_train, scoring='accuracy', cv=skf)
-    average_score = sum(scores)/len(scores)
-    print(f'The cross validation scores are: {scores}')
-    print(f'The average cross validation score is: {average_score}')
-
 #
 def grabArguments():
     if len(sys.argv) < 2:
         print(
-            'Please pass the directory containing the author text CSV files.'
+            'Please pass in order:\n'
+            '\tThe directory containing the author text CSV files.\n'
+            '\tThe name of output vector file.\n'
+            '\tThe name of output categories file.'
         )
         sys.exit(0)
 
     csv_path = sys.argv[1]
-    return csv_path
+    vectors_file = sys.argv[2]
+    categories_file = sys.argv[3]
+    return csv_path, vectors_file, categories_file
 
 
 #---------------------------------------------------------------------------
@@ -118,21 +112,26 @@ def grabArguments():
 #---------------------------------------------------------------------------
 #
 if __name__ == '__main__':
-    NUM_FILES = 2
-    NUM_DATAPOINTS = 500
 
-    csv_path = grabArguments()
-    data_frame = grabAuthors(csv_path, num_files=2)
+    csv_path, vectors_file, categories_file = grabArguments()
+    data_frame = grabAuthors(csv_path, num_files=1)
+
+    data_frame = data_frame.iloc[0:100,:]
+
+    print(data_frame)
 
     vectorizer, vectors = vectorizeText(data_frame.iloc[:, 3])
+
+    #print('Fitting Data...')
+    #vectors = vectorizer.transform(data_frame.iloc[:, 3])
+
+    #print('Reducing Dimensionality...')
     #reducer, vectors_reduced = reduceDimensionality(vectors, 300)
 
-    binary_categories = []
-    for idx, item in enumerate(data_frame.iloc[:, 0]):
-        binary_categories.append(
-            1 if item > 2 else 0
-        )
+    print('Saving Vectors...')
+    sparse.save_npz(vectors_file, vectors)
 
-    model = LinearSVC(random_state=42)
+    print('Saving Categories...')
+    np.save(categories_file, np.array(data_frame.iloc[:, 0]))
 
-    cross_validate_model(model, vectors, binary_categories)
+    print('All Done')
