@@ -16,12 +16,7 @@ from sklearn.pipeline import FeatureUnion
 # Functions
 #---------------------------------------------------------------------------
 #
-def grabAuthors(csv_path, num_files=1e10):
-
-    if num_files <= 0:
-        print('You must want at least one file to call grabAuthors.')
-        return None
-
+def grabAuthors(csv_path, num_files=-1):
     data_frames = []
     for csv_file_num, csv_file in enumerate(os.listdir(csv_path)):
         if csv_file_num == num_files:
@@ -30,7 +25,6 @@ def grabAuthors(csv_path, num_files=1e10):
 
     return pd.concat(data_frames, ignore_index=True)
 
-#
 def vectorizeText(texts):
     # Build a vectorizer that splits strings into sequences of 1 to 3 words
     word_vectorizer = TfidfVectorizer(
@@ -56,7 +50,6 @@ def vectorizeText(texts):
     vectors = vectorizer.fit_transform(texts)
     return vectorizer, vectors
 
-#
 def grabArguments():
     if len(sys.argv) < 3:
         print(
@@ -84,8 +77,7 @@ if __name__ == '__main__':
 
 
     print('Importing CSV...')
-    data_frame = grabAuthors(csv_path, num_files=1)
-    data_frame = data_frame.iloc[0:100,:]
+    data_frame = grabAuthors(csv_path)
 
     print('Vectorising Data...')
     vectorizer, vectors = vectorizeText(data_frame.iloc[:, 3])
