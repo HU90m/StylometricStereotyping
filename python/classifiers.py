@@ -1,4 +1,5 @@
 import sys
+from os import path
 
 from scipy import sparse
 
@@ -21,48 +22,50 @@ def cross_validate_model(model, X_train, y_train):
 
     scores = cross_val_score(model, X_train, y_train, scoring='accuracy', cv=skf)
     average_score = sum(scores)/len(scores)
-    print(f'The cross validation scores are: {scores}')
-    print(f'The average cross validation score is: {average_score}')
+    print(f'The cross validation scores are:')
+    for score in scores:
+        print(f'\t{score}')
+    print(f'The average cross validation score is:')
+    print(f'\t{average_score}')
 
 def grabArguments():
     if len(sys.argv) < 2:
-        print(
-            'Please pass:\n'
-            '\tThe name of input vector file.\n'
-            '\tThe name of input categories file.'
-        )
+        print('Please pass the vector directory.')
         sys.exit(0)
 
-    vectors_file = sys.argv[1]
-    categories_file = sys.argv[2]
-    return vectors_file, categories_file
+    vector_dir = sys.argv[1]
+    return vector_dir
 
 #---------------------------------------------------------------------------
 # Main
 #---------------------------------------------------------------------------
 #
 if __name__ == '__main__':
+    vector_dir = grabArguments()
 
-    vectors_file, categories_file = grabArguments()
+    vectors_file = path.join(vector_dir, 'vectors.npz')
+    categories_file = path.join(vector_dir, 'categories.npy')
 
+    print('Loading Vectors...')
     vectors = sparse.load_npz(vectors_file)
 
+    print('Loading Categories...')
     categories = np.load(categories_file, allow_pickle=True)
 
+    print('Selecting Categories...')
     # selects only categories 2 and 5
     selection = np.logical_or.reduce([categories == x for x in (2, 5)])
 
     selected_vectors = vectors.todense()[selection]
     selected_categories = categories[selection]
 
-    print(selected_categories)
+    binary_selected_categories = \
+        [0 if item==2 else 1 for item in selected_categories]
 
-    selected_categories = [0 if item==2 else 1 for item in selected_categories]
-
-    print(selected_categories)
-
-
+    print('Cross Validating Model...')
     #model = LinearSVC(random_state=42)
     model = SGDClassifier(random_state=42)
 
-    cross_validate_model(model, selected_vectors, selected_categories)
+    cross_validate_model(model, selected_vectors, binary_selected_categories)
+
+    print('All Done')
