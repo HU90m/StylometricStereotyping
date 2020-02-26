@@ -11,6 +11,9 @@ from scipy import sparse
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.pipeline import FeatureUnion
 
+PROGRESS_BAR=True
+if PROGRESS_BAR:
+    from tqdm import tqdm
 
 #---------------------------------------------------------------------------
 # Functions
@@ -47,7 +50,10 @@ def vectorizeText(texts):
         ('word:', word_vectorizer),
         ('char:', char_vectorizer),
     ])
-    vectors = vectorizer.fit_transform(texts)
+    if PROGRESS_BAR:
+        vectors = vectorizer.fit_transform(tqdm(texts))
+    else:
+        vectors = vectorizer.fit_transform(texts)
     return vectorizer, vectors
 
 def grabArguments():
