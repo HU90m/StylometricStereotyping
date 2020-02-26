@@ -17,25 +17,26 @@ import re
 #---------------------------------------------------------------------------
 #
 CATEGORY_NUM = {
-    '10s_female' : 0,
-    '20s_female' : 1,
-    '30s_female' : 2,
-    '10s_male'   : 3,
-    '20s_male'   : 4,
-    '30s_male'   : 5,
+    '30s_female' : 0,
+    '30s_male'   : 1,
+    '20s_male'   : 2,
+    '20s_female' : 3,
+    '10s_female' : 4,
+    '10s_male'   : 5,
 }
 CATEGORY_NAME = {
-    0 : '10s_female',
-    1 : '20s_female',
-    2 : '30s_female',
-    3 : '10s_male',
-    4 : '20s_male',
-    5 : '30s_male',
+    0 : '30s_female',
+    1 : '30s_male',
+    2 : '20s_female',
+    3 : '20s_male',
+    4 : '10s_female',
+    5 : '10s_male',
 }
 BATCH_SIZE = 10000
 NUM_AUTHORS = 1e20
 MULTIPROCESSING = True
 KEEP_EXPRESSION = '[\w ]+'
+IGNORED_CATEGORIES = [4, 5]
 
 
 #---------------------------------------------------------------------------
@@ -115,29 +116,30 @@ def createCSVFile(
         file_no_ext, file_ext = splitext(author_file)
 
         info_from_filename = file_no_ext.split('_', 2)
+        category_num = CATEGORY_NUM[info_from_filename[2]]
 
-        if isfile(author_file_location) and (file_ext == '.xml'):
-            author_text = grabAuthorText(
-                author_file_location,
-                keep_expression,
-            )
-            if author_text:
-                category_num = CATEGORY_NUM[info_from_filename[2]]
-                csv_writer.writerow([
-                    category_num,          # Category Number
-                    info_from_filename[2], # Category
-                    info_from_filename[0], # Author ID
-                    author_text,           # Text
-                ])
-                category_counts[category_num] += 1
-            else:
-                with print_lock:
-                    print(
-                        'Author had NoneType in conversation:\n'
-                        f'\tid: {info_from_filename[0]}\n'
-                        f'\tfile: {author_file_location}'
-                    )
-                    print('Skipping this author.')
+        if isfile(author_file_location) and file_ext == '.xml':
+            if category_num not in IGNORED_CATEGORIES:
+                author_text = grabAuthorText(
+                    author_file_location,
+                    keep_expression,
+                )
+                if author_text:
+                    csv_writer.writerow([
+                        category_num,          # Category Number
+                        info_from_filename[2], # Category
+                        info_from_filename[0], # Author ID
+                        author_text,           # Text
+                    ])
+                    category_counts[category_num] += 1
+                else:
+                    with print_lock:
+                        print(
+                            'Author had NoneType in conversation:\n'
+                            f'\tid: {info_from_filename[0]}\n'
+                            f'\tfile: {author_file_location}'
+                        )
+                        print('Skipping this author.')
         else:
             with print_lock:
                 print(f'{author_file_location} is not an xml file!')
@@ -147,8 +149,9 @@ def createCSVFile(
         print(f'Finished making \'{csv_file_name}\'.')
 
     csv_file_name_with_info = csv_file_prefix
+    csv_file_name_with_info += '_' + str(sum(category_counts))
     for category_count in category_counts:
-        csv_file_name_with_info += '_' + str(category_count)
+        csv_file_name_with_info += '-' + str(category_count)
     csv_file_name_with_info += '.csv'
     csv_file_location_with_info = join(csv_path, csv_file_name_with_info)
     os.rename(
@@ -162,11 +165,8 @@ def createCSVFile(
             f'\'{csv_file_location_with_info}\'.',
         )
 
-
-
 #
 def grabAuthors(csv_path, xml_path, print_lock):
-
     with print_lock:
         print('Getting Authors...')
 
