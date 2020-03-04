@@ -2,7 +2,7 @@
 # Settings
 #---------------------------------------------------------------------------
 #
-CLASSIFICATION = False
+MODELS = ('ridge', 'svr', 'lin_svc')
 
 
 #---------------------------------------------------------------------------
@@ -16,36 +16,102 @@ from scipy import sparse
 
 import numpy as np
 
+from sklearn.linear_model import Ridge
+from sklearn.svm import SVR
 from sklearn.svm import LinearSVC
-from sklearn.linear_model import SGDClassifier
 
+from sklearn.model_selection import KFold
 from sklearn.model_selection import StratifiedKFold
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_validate
 
 
 #---------------------------------------------------------------------------
 # Functions
 #---------------------------------------------------------------------------
 #
-def cross_validate_model(model, X_train, y_train):
-    # Build a stratified k-fold cross-validator object
-    skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
+def putIn2Bins(reliability):
+    if reliability < 0.5:
+        return 0
+    else:
+        return 1
 
-    scores = cross_val_score(model, X_train, y_train, scoring='accuracy', cv=skf)
-    average_score = sum(scores)/len(scores)
-    print(f'The cross validation scores are:')
-    for score in scores:
-        print(f'\t{score}')
-    print(f'The average cross validation score is:')
-    print(f'\t{average_score}')
+def putIn4Bins(reliability):
+    if reliability < 0.25:
+        return 0
+    elif reliability < 0.5:
+        return 1
+    elif reliability < 0.75:
+        return 2
+    else:
+        return 3
+
+def cross_validate_model(
+    model,
+    X_train,
+    y_train,
+    is_classification=False,
+    calculate_training_scores=True,
+):
+
+    if is_classification:
+        results = cross_validate(
+            model,
+            X_train,
+            y_train,
+            scoring='accuracy',
+            return_train_score=calculate_training_scores,
+            cv=StratifiedKFold(n_splits=10, shuffle=True, random_state=42),
+            n_jobs=-1,
+        )
+    else:
+        results = cross_validate(
+            model,
+            X_train,
+            y_train,
+            scoring='neg_mean_squared_error',
+            return_train_score=calculate_training_scores,
+            cv=KFold(n_splits=10, shuffle=True, random_state=42),
+            n_jobs=-1,
+        )
+
+    display = [
+        ('fit time', 'fit_time'),
+        ('test score', 'test_score'),
+    ]
+    if calculate_training_scores:
+        display.append(
+            ('training score', 'train_score')
+        )
+
+    for name, key in display:
+        print(f'The {name}s:')
+        for metric in results[key]:
+            print(f'\t{metric}')
+        average_metric = sum(results[key])/len(results[key])
+        print(f'The average {name}:')
+        print(f'\t{average_metric}\n')
+
 
 def grabArguments():
-    if len(sys.argv) < 2:
-        print('Please pass the vector directory.')
+    if len(sys.argv) < 4:
+        print(
+            'Please pass the following in order:\n'
+            '\tThe vector file.\n'
+            '\tThe target file.\n'
+            '\tThe model to be used.\n'
+        )
         sys.exit(0)
 
-    vector_dir = sys.argv[1]
-    return vector_dir
+    if sys.argv[3] not in MODELS:
+        print('The available models are:')
+        for model in MODELS:
+            print(f'\t{model}')
+        sys.exit(0)
+
+    vectors_file = sys.argv[1]
+    targets_file = sys.argv[2]
+    model = sys.argv[3]
+    return vectors_file, targets_file, model
 
 
 #---------------------------------------------------------------------------
@@ -53,31 +119,37 @@ def grabArguments():
 #---------------------------------------------------------------------------
 #
 if __name__ == '__main__':
-    vector_dir = grabArguments()
-
-    vectors_file = path.join(vector_dir, 'vectors.npz')
-    categories_file = path.join(vector_dir, 'categories.npy')
+    vectors_file, targets_file, model = grabArguments()
 
     print('Loading Vectors...')
-    vectors = sparse.load_npz(vectors_file)
+    vectors_filename, vectors_file_ext = path.splitext(vectors_file)
+    if vectors_file_ext == '.npz':
+        vectors = sparse.load_npz(vectors_file)
+        sparse = True
+    else:
+        vectors = np.load(vectors_file, allow_pickle=True)
+        sparse = False
 
-    print('Loading Categories...')
-    categories = np.load(categories_file, allow_pickle=True)
+    print('Loading Reliabilities...')
+    reliabilities = np.load(targets_file, allow_pickle=True)
 
-    print('Selecting Categories...')
-    # selects only categories 2 and 5
-    selection = np.logical_or.reduce([categories == x for x in (2, 5)])
-
-    selected_vectors = vectors.todense()[selection]
-    selected_categories = categories[selection]
-
-    binary_selected_categories = \
-        [0 if item==2 else 1 for item in selected_categories]
+    if model in ('lin_svc',):
+        print('Grouping Reliabilities into Bins...')
+        reliability_bins = [putIn2Bins(item) for item in reliabilities]
 
     print('Cross Validating Model...')
-    #model = LinearSVC(random_state=42)
-    model = SGDClassifier(random_state=42)
+    if model == 'ridge':
+        cross_validate_model(Ridge(), vectors, reliabilities)
 
-    cross_validate_model(model, selected_vectors, binary_selected_categories)
+    elif model == 'svr':
+        cross_validate_model(SVR(), vectors, reliabilities)
 
-    print('All Done')
+    elif model == 'lin_svc':
+        cross_validate_model(
+            LinearSVC(),
+            vectors,
+            reliability_bins,
+            is_classification=True,
+        )
+
+    print('All Done.')
