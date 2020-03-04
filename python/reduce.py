@@ -56,7 +56,7 @@ def reduceDimensionality(reduction_technique, vectors, reliability_bins):
     return reducer, vectors_reduced
 
 def grabArguments():
-    if len(sys.argv) < 2:
+    if len(sys.argv) < 3:
         print(
             'Please pass in order:\n'
             '\tThe vector directory.\n'
@@ -99,13 +99,11 @@ if __name__ == '__main__':
     print('Loading Vectors...')
     vectors = sparse.load_npz(vectors_file)
 
-
     print('Loading Reliabilities...')
     reliabilities = np.load(reliabilities_file, allow_pickle=True)
 
     print('Grouping Reliabilities into Bins...')
     reliability_bins = [putInBin(item) for item in reliabilities]
-
 
     print('Reducing Data...')
     reducer, reduced_vectors = reduceDimensionality(
