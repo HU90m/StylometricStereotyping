@@ -1,8 +1,24 @@
+#---------------------------------------------------------------------------
+# Settings
+#---------------------------------------------------------------------------
+#
+BATCH_SIZE = 10000
+NUM_AUTHORS = 1e20
+MULTIPROCESSING = True
+KEEP_EXPRESSION = '[\w !?,\'\"]+'
+IGNORED_CATEGORIES = [4, 5]
+
+
+#---------------------------------------------------------------------------
+# Imports
+#---------------------------------------------------------------------------
+#
 import sys
 import os
 from os.path import isfile, join, splitext
 
-from multiprocessing import Process, Manager
+if MULTIPROCESSING:
+    from multiprocessing import Process, Manager
 
 import csv
 
@@ -32,11 +48,6 @@ CATEGORY_NAME = {
     4 : '10s_female',
     5 : '10s_male',
 }
-BATCH_SIZE = 10000
-NUM_AUTHORS = 1e20
-MULTIPROCESSING = True
-KEEP_EXPRESSION = '[\w !]+'
-IGNORED_CATEGORIES = [4, 5]
 
 
 #---------------------------------------------------------------------------
@@ -216,8 +227,8 @@ def grabArguments():
     if len(sys.argv) < 3:
         print(
             'Please pass the following in order:\n'
-            '\tThe path in which the xml data is.'
-            '\tThe path in which to place the CSV files.\n'
+            '\tThe path in which the xml data is.\n'
+            '\tThe path in which to place the CSV files.'
         )
         sys.exit(0)
 
