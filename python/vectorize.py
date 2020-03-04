@@ -11,7 +11,7 @@ from scipy import sparse
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.pipeline import FeatureUnion
 
-PROGRESS_BAR=True
+PROGRESS_BAR=False
 if PROGRESS_BAR:
     from tqdm import tqdm
 
