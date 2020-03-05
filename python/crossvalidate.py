@@ -63,25 +63,47 @@ def cross_validate_model(
             cv=StratifiedKFold(n_splits=10, shuffle=True, random_state=42),
             n_jobs=-1,
         )
+        display = [
+            ('fit time', 'fit_time'),
+            ('test accuracy', 'test_score'),
+        ]
+        if calculate_training_scores:
+            display.append(
+                ('training accuracy', 'train_score')
+            )
     else:
         results = cross_validate(
             model,
             X_train,
             y_train,
-            scoring='neg_mean_squared_error',
+            scoring=(
+                'neg_root_mean_squared_error',
+                'r2',
+            ),
             return_train_score=calculate_training_scores,
             cv=KFold(n_splits=10, shuffle=True, random_state=42),
             n_jobs=-1,
         )
-
-    display = [
-        ('fit time', 'fit_time'),
-        ('test score', 'test_score'),
-    ]
-    if calculate_training_scores:
-        display.append(
-            ('training score', 'train_score')
-        )
+        display = [
+            ('fit time', 'fit_time'),
+            (
+                'test root mean squared error',
+                'test_neg_root_mean_squared_error',
+            ),
+            (
+                'test R2',
+                'test_r2',
+            ),
+        ]
+        if calculate_training_scores:
+            display.append((
+                'training root mean squared error',
+                'train_neg_root_mean_squared_error',
+            ))
+            display.append((
+                'training R2',
+                'train_r2',
+            ))
 
     for name, key in display:
         print(f'The {name}s:')
