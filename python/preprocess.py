@@ -5,7 +5,7 @@
 BATCH_SIZE = 10000
 NUM_AUTHORS = 1e20
 MULTIPROCESSING = True
-KEEP_EXPRESSION = '[\w !?:-(),\'\"]+'
+KEEP_EXPRESSION = '[\w ,!?&:\-\'\"]+'
 IGNORED_CATEGORIES = [4, 5]
 
 
