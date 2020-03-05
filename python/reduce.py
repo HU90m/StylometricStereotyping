@@ -4,6 +4,7 @@
 #
 NUM_DIMENSIONS = 300
 TSNE_NUM_DIMENSIONS = 3
+LDA_FIT_PERCENTAGE = 0.60
 
 
 #---------------------------------------------------------------------------
@@ -43,15 +44,21 @@ def reduceDimensionality(reduction_technique, vectors, reliability_bins):
         vectors_reduced = reducer.fit_transform(vectors)
 
     elif reduction_technique == 'tsne':
-        reducer = TSNE(n_components=TSNE_NUM_DIMENSIONS)
+        reducer = TSNE(
+            n_components=TSNE_NUM_DIMENSIONS,
+            n_jobs=-1,
+        )
         vectors_reduced = reducer.fit_transform(vectors)
 
     elif reduction_technique == 'lda':
+        fit_index_max = int(vectors.shape[0] * LDA_FIT_PERCENTAGE)
+        print(f'fitting up to index {fit_index_max} out of {vectors.shape[0]}')
         reducer = LinearDiscriminantAnalysis(n_components=NUM_DIMENSIONS)
-        vectors_reduced = reducer.fit_transform(
-            vectors.toarray(),
-            reliability_bins,
+        reducer.fit(
+            vectors.toarray()[:fit_index_max],
+            reliability_bins[:fit_index_max],
         )
+        vectors_reduced = reducer.transform(vectors.toarray())
 
     return reducer, vectors_reduced
 
