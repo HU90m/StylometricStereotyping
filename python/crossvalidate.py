@@ -3,6 +3,7 @@
 #---------------------------------------------------------------------------
 #
 MODELS = ('ridge', 'svr', 'lin_svc')
+USE_THUNDERSVM = True
 
 
 #---------------------------------------------------------------------------
@@ -17,12 +18,16 @@ from scipy import sparse
 import numpy as np
 
 from sklearn.linear_model import Ridge
-from sklearn.svm import SVR
 from sklearn.svm import LinearSVC
 
 from sklearn.model_selection import KFold
 from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import cross_validate
+
+if USE_THUNDERSVM:
+    from thundersvm import SVR
+else:
+    from sklearn.svm import SVR
 
 
 #---------------------------------------------------------------------------
