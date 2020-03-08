@@ -2,7 +2,6 @@
 # Settings
 #---------------------------------------------------------------------------
 #
-MODELS = ('ridge', 'svr', 'lin_svc')
 USE_THUNDERSVM = True
 
 
@@ -25,15 +24,37 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import cross_validate
 
 if USE_THUNDERSVM:
-    from thundersvm import SVR
+    from thundersvm import SVR, SVC
 else:
-    from sklearn.svm import SVR
+    from sklearn.svm import SVR, SVC
+
+
+#---------------------------------------------------------------------------
+# Globals
+#---------------------------------------------------------------------------
+#
+CATEGORY_NUM = {
+    '30s_female' : 0,
+    '30s_male'   : 1,
+    '20s_male'   : 2,
+    '20s_female' : 3,
+    '10s_female' : 4,
+    '10s_male'   : 5,
+}
+MODELS = ('ridge', 'svr', 'lin_svc', 'category_svm')
 
 
 #---------------------------------------------------------------------------
 # Functions
 #---------------------------------------------------------------------------
 #
+def MaleFemaleSplit(category):
+    if (category == CATEGORY_NUM['30s_female']
+        or category ==  CATEGORY_NUM['20s_female']):
+        return 0
+    else:
+        return 1
+
 def putIn2Bins(reliability):
     if reliability < 0.5:
         return 0
@@ -158,24 +179,38 @@ if __name__ == '__main__':
         sparse = False
 
     print('Loading Reliabilities...')
-    reliabilities = np.load(targets_file, allow_pickle=True)
+    targets = np.load(targets_file, allow_pickle=True)
 
-    if model in ('lin_svc',):
-        print('Grouping Reliabilities into Bins...')
-        reliability_bins = [putIn2Bins(item) for item in reliabilities]
 
-    print('Cross Validating Model...')
     if model == 'ridge':
-        cross_validate_model(Ridge(), vectors, reliabilities)
+        print('Cross Validating Model...')
+        cross_validate_model(Ridge(), vectors, targets)
 
     elif model == 'svr':
-        cross_validate_model(SVR(), vectors, reliabilities)
+        print('Cross Validating Model...')
+        cross_validate_model(SVR(), vectors, targets)
 
     elif model == 'lin_svc':
+        print('Grouping Reliabilities into Bins...')
+        reliability_bins = [putIn2Bins(item) for item in targets]
+
+        print('Cross Validating Model...')
         cross_validate_model(
             LinearSVC(),
             vectors,
             reliability_bins,
+            is_classification=True,
+        )
+
+    elif model == 'category_svm':
+        print('Grouping Data into Female/Male Bins...')
+        maleOrFemale_bins = [MaleFemaleSplit(item) for item in targets]
+
+        print('Cross Validating Model...')
+        cross_validate_model(
+            SVC(),
+            vectors,
+            maleOrFemale_bins,
             is_classification=True,
         )
 
