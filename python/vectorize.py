@@ -1,3 +1,14 @@
+#---------------------------------------------------------------------------
+# Settings
+#---------------------------------------------------------------------------
+#
+PROGRESS_BAR=False
+
+
+#---------------------------------------------------------------------------
+# Imports
+#---------------------------------------------------------------------------
+#
 import sys
 import os
 from os import path
@@ -11,9 +22,9 @@ from scipy import sparse
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.pipeline import FeatureUnion
 
-PROGRESS_BAR=False
 if PROGRESS_BAR:
     from tqdm import tqdm
+
 
 #---------------------------------------------------------------------------
 # Functions
@@ -57,17 +68,20 @@ def vectorizeText(texts):
     return vectorizer, vectors
 
 def grabArguments():
-    if len(sys.argv) < 3:
+    if len(sys.argv) < 4:
         print(
             'Please pass in order:\n'
             '\tThe directory containing the author text CSV files.\n'
-            '\tThe name of output path.'
+            '\tThe name of output path.\n'
+            '\tThe number of files form which to grab data.\n'
+            '\t\t(negative value grabs data from all files).\n'
         )
         sys.exit(0)
 
     csv_path = sys.argv[1]
     output_path = sys.argv[2]
-    return csv_path, output_path
+    num_files = int(sys.argv[3])
+    return csv_path, output_path, num_files
 
 
 #---------------------------------------------------------------------------
@@ -75,7 +89,7 @@ def grabArguments():
 #---------------------------------------------------------------------------
 #
 if __name__ == '__main__':
-    csv_path, output_path = grabArguments()
+    csv_path, output_path, number_of_files = grabArguments()
 
     vectorizer_file = path.join(output_path, 'vectorizer.obj')
     vectors_file = path.join(output_path, 'vectors.npz')
@@ -83,7 +97,7 @@ if __name__ == '__main__':
 
 
     print('Importing CSV...')
-    data_frame = grabAuthors(csv_path)
+    data_frame = grabAuthors(csv_path, num_files=number_of_files)
 
     print('Vectorising Data...')
     vectorizer, vectors = vectorizeText(data_frame.iloc[:, 3])

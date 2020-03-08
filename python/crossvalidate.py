@@ -150,6 +150,16 @@ def grabArguments():
         )
         sys.exit(0)
 
+    if not path.isfile(sys.argv[1]):
+        print('The following is not a file:')
+        print(f'\t{sys.argv[1]}')
+        sys.exit(0)
+
+    if not path.isfile(sys.argv[2]):
+        print('The following is not a file:')
+        print(f'\t{sys.argv[2]}')
+        sys.exit(0)
+
     if sys.argv[3] not in MODELS:
         print('The available models are:')
         for model in MODELS:
@@ -173,10 +183,11 @@ if __name__ == '__main__':
     vectors_filename, vectors_file_ext = path.splitext(vectors_file)
     if vectors_file_ext == '.npz':
         vectors = sparse.load_npz(vectors_file)
-        sparse = True
+        is_sparse = True
     else:
         vectors = np.load(vectors_file, allow_pickle=True)
-        sparse = False
+        is_sparse = False
+
 
     print('Loading Reliabilities...')
     targets = np.load(targets_file, allow_pickle=True)
