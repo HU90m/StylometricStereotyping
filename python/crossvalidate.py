@@ -250,6 +250,7 @@ if __name__ == '__main__':
             "iterations": 2,
             "depth": 2,
             "verbose": False,
+            "task_type": "GPU",
         }
         cross_validate_cat_model(
             parameters,
@@ -303,6 +304,7 @@ if __name__ == '__main__':
             "iterations": 2,
             "depth": 2,
             "verbose": False,
+            "task_type": "GPU",
         }
         cross_validate_cat_model(
             parameters,
