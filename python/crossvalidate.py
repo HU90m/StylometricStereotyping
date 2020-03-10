@@ -3,6 +3,7 @@
 #---------------------------------------------------------------------------
 #
 USE_THUNDERSVM = True
+N_SPLITS = 2
 
 
 #---------------------------------------------------------------------------
@@ -17,6 +18,8 @@ from scipy import sparse
 import numpy as np
 
 from sklearn.linear_model import Ridge
+from sklearn.linear_model import Lasso
+from sklearn.linear_model import SGDRegressor
 from sklearn.svm import LinearSVC
 
 from sklearn.model_selection import KFold
@@ -41,7 +44,7 @@ CATEGORY_NUM = {
     '10s_female' : 4,
     '10s_male'   : 5,
 }
-MODELS = ('ridge', 'svr', 'lin_svc', 'category_svm')
+MODELS = ('ridge', 'lasso', 'sgd', 'svr', 'lin_svc', 'category_svm')
 
 
 #---------------------------------------------------------------------------
@@ -78,6 +81,7 @@ def cross_validate_model(
     is_classification=False,
     calculate_training_scores=True,
 ):
+    jobs = None if USE_THUNDERSVM else -1
 
     if is_classification:
         results = cross_validate(
@@ -86,8 +90,8 @@ def cross_validate_model(
             y_train,
             scoring='accuracy',
             return_train_score=calculate_training_scores,
-            cv=StratifiedKFold(n_splits=10, shuffle=True, random_state=42),
-            n_jobs=-1,
+            cv=StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=42),
+            n_jobs=jobs,
         )
         display = [
             ('fit time', 'fit_time'),
@@ -107,8 +111,8 @@ def cross_validate_model(
                 'r2',
             ),
             return_train_score=calculate_training_scores,
-            cv=KFold(n_splits=10, shuffle=True, random_state=42),
-            n_jobs=-1,
+            cv=KFold(n_splits=N_SPLITS, shuffle=True, random_state=42),
+            n_jobs=jobs,
         )
         display = [
             ('fit time', 'fit_time'),
@@ -178,6 +182,10 @@ def grabArguments():
 #
 if __name__ == '__main__':
     vectors_file, targets_file, model = grabArguments()
+    print('Settings:')
+    print(f'vectors file:\n\t{vectors_file}')
+    print(f'targets file:\n\t{targets_file}')
+    print(f'model:\n\t{model}')
 
     print('Loading Vectors...')
     vectors_filename, vectors_file_ext = path.splitext(vectors_file)
@@ -196,6 +204,14 @@ if __name__ == '__main__':
     if model == 'ridge':
         print('Cross Validating Model...')
         cross_validate_model(Ridge(), vectors, targets)
+
+    elif model == 'lasso':
+        print('Cross Validating Model...')
+        cross_validate_model(Lasso(), vectors, targets)
+
+    elif model == 'sgd':
+        print('Cross Validating Model...')
+        cross_validate_model(SGDRegressor(), vectors, targets)
 
     elif model == 'svr':
         print('Cross Validating Model...')
