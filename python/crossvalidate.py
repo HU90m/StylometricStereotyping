@@ -3,7 +3,8 @@
 #---------------------------------------------------------------------------
 #
 USE_THUNDERSVM = True
-N_SPLITS = 2
+USE_CATBOOST = True
+N_SPLITS = 10
 
 
 #---------------------------------------------------------------------------
@@ -17,6 +18,7 @@ from scipy import sparse
 
 import numpy as np
 
+
 from sklearn.linear_model import Ridge
 from sklearn.linear_model import Lasso
 from sklearn.linear_model import SGDRegressor
@@ -25,6 +27,10 @@ from sklearn.svm import LinearSVC
 from sklearn.model_selection import KFold
 from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import cross_validate
+
+
+if USE_CATBOOST:
+    import catboost as cat
 
 if USE_THUNDERSVM:
     from thundersvm import SVR, SVC
@@ -44,7 +50,16 @@ CATEGORY_NUM = {
     '10s_female' : 4,
     '10s_male'   : 5,
 }
-MODELS = ('ridge', 'lasso', 'sgd', 'svr', 'lin_svc', 'category_svm')
+MODELS = (
+    'ridge',
+    'catboost',
+    'lasso',
+    'sgd',
+    'svr',
+    'lin_svc',
+    'category_svm',
+    'category_catboost',
+)
 
 
 #---------------------------------------------------------------------------
@@ -143,6 +158,30 @@ def cross_validate_model(
         print(f'The average {name}:')
         print(f'\t{average_metric}\n')
 
+def cross_validate_cat_model(
+    model_parameters,
+    X_train,
+    y_train,
+    is_classification=False,
+):
+    dataset = cat.Pool(
+        data=X_train,
+        label=y_train,
+    )
+    if is_classification:
+        results = cat.cv(
+            dataset,
+            parameters,
+            folds=StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=42),
+        )
+    else:
+        results = cat.cv(
+            dataset,
+            parameters,
+            folds=KFold(n_splits=N_SPLITS, shuffle=True, random_state=42),
+        )
+    print(results)
+
 
 def grabArguments():
     if len(sys.argv) < 4:
@@ -205,6 +244,20 @@ if __name__ == '__main__':
         print('Cross Validating Model...')
         cross_validate_model(Ridge(), vectors, targets)
 
+    elif model == 'catboost':
+        print('Cross Validating Model...')
+        parameters = {
+            "iterations": 2,
+            "depth": 2,
+            "verbose": False,
+        }
+        cross_validate_cat_model(
+            parameters,
+            vectors,
+            targets,
+            is_classification=False,
+        )
+
     elif model == 'lasso':
         print('Cross Validating Model...')
         cross_validate_model(Lasso(), vectors, targets)
@@ -236,6 +289,23 @@ if __name__ == '__main__':
         print('Cross Validating Model...')
         cross_validate_model(
             SVC(),
+            vectors,
+            maleOrFemale_bins,
+            is_classification=True,
+        )
+
+    elif model == 'category_catboost':
+        print('Grouping Data into Female/Male Bins...')
+        maleOrFemale_bins = [MaleFemaleSplit(item) for item in targets]
+
+        print('Cross Validating Model...')
+        parameters = {
+            "iterations": 2,
+            "depth": 2,
+            "verbose": False,
+        }
+        cross_validate_cat_model(
+            parameters,
             vectors,
             maleOrFemale_bins,
             is_classification=True,
