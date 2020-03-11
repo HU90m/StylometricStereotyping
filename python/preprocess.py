@@ -2,11 +2,13 @@
 # Settings
 #---------------------------------------------------------------------------
 #
+IS_PAN13 = False
 BATCH_SIZE = 10000
-NUM_AUTHORS = 1e20
-MULTIPROCESSING = True
+MULTIPROCESSING = False
+
+MAKE_LOWERCASE = False
+SELECT_CHARACTERS = False
 KEEP_EXPRESSION = '[\w ,!?&:\-\'\"]+'
-IGNORED_CATEGORIES = [4, 5]
 
 
 #---------------------------------------------------------------------------
@@ -15,39 +17,52 @@ IGNORED_CATEGORIES = [4, 5]
 #
 import sys
 import os
-from os.path import isfile, join, splitext
+from os import path
 
-if MULTIPROCESSING:
-    from multiprocessing import Process, Manager
-
-import csv
-
-from xml.etree import ElementTree
-from html.parser import HTMLParser
+from multiprocessing import Process, Manager
 
 import re
+
+import csv
+from xml.etree import ElementTree
+from html.parser import HTMLParser
 
 
 #---------------------------------------------------------------------------
 # Globals
 #---------------------------------------------------------------------------
 #
-CATEGORY_NUM = {
-    '30s_female' : 0,
-    '30s_male'   : 1,
-    '20s_male'   : 2,
-    '20s_female' : 3,
-    '10s_female' : 4,
-    '10s_male'   : 5,
-}
-CATEGORY_NAME = {
-    0 : '30s_female',
-    1 : '30s_male',
-    2 : '20s_female',
-    3 : '20s_male',
-    4 : '10s_female',
-    5 : '10s_male',
-}
+if IS_PAN13:
+    CATEGORY_NUM = {
+        '30s_female' : 0,
+        '30s_male'   : 1,
+        '20s_male'   : 2,
+        '20s_female' : 3,
+        '10s_female' : 4,
+        '10s_male'   : 5,
+    }
+    CATEGORY_NAME = {
+        0 : '30s_female',
+        1 : '30s_male',
+        2 : '20s_female',
+        3 : '20s_male',
+        4 : '10s_female',
+        5 : '10s_male',
+    }
+    NUM_CATEGORIES = 6
+    IGNORED_CATEGORIES = (4, 5)
+
+else:
+    CATEGORY_NUM = {
+        'bot'   : 0,
+        'human' : 1,
+    }
+    CATEGORY_NAME = {
+        0 : 'bot',
+        1 : 'human',
+    }
+    NUM_CATEGORIES = 2
+    IGNORED_CATEGORIES = ()
 
 
 #---------------------------------------------------------------------------
@@ -89,31 +104,43 @@ def grabAuthorText(
         parser=ElementTree.XMLParser(encoding="utf-8"),
     )
     root = tree.getroot()
-    conversations = root[0]
+    bodies = root[0]
 
-    for conversation in conversations:
-        if isinstance(conversation.text, str):
-            html2text.feed(conversation.text)
+    for body in bodies:
+        if isinstance(body.text, str):
+            html2text.feed(body.text)
+            html2text.feed(' ')
         else:
             return False
 
-    return ''.join(keep_expr.findall(html2text.text.lower()))
+    author_text = html2text.text
+
+    if MAKE_LOWERCASE:
+        author_text = author_text.lower()
+
+    if SELECT_CHARACTERS:
+        author_text = ''.join(keep_expr.findall(author_text))
+
+    return author_text
 
 #
 def createCSVFile(
     xml_path,
-    xml_file_names,
     csv_path,
+    author_ids,
+    author_categories,
+    author_filenames,
     csv_file_prefix,
     print_lock
 ):
-    category_counts = [0, 0, 0, 0, 0, 0]
+    category_counts = [0]*NUM_CATEGORIES
     keep_expression = re.compile(KEEP_EXPRESSION)
 
-    csv_file_name = csv_file_prefix + '.csv'
+    csv_filename = csv_file_prefix + '.csv'
     with print_lock:
-        print(f'Making \'{csv_file_name}\'.')
-    csv_file_location = join(csv_path, csv_file_name)
+        print(f'Making \'{csv_filename}\'.')
+
+    csv_file_location = path.join(csv_path, csv_filename)
     csv_file = open(csv_file_location, 'w')
     csv_writer = csv.writer(
         csv_file,
@@ -121,15 +148,12 @@ def createCSVFile(
         quotechar='"',
         quoting=csv.QUOTE_NONNUMERIC,
     )
-    for file_num, author_file in enumerate(xml_file_names):
+    for author_idx, author_filename in enumerate(author_filenames):
 
-        author_file_location = join(xml_path, author_file)
-        file_no_ext, file_ext = splitext(author_file)
+        author_file_location = path.join(xml_path, author_filename)
+        category_num = CATEGORY_NUM[author_categories[author_idx]]
 
-        info_from_filename = file_no_ext.split('_', 2)
-        category_num = CATEGORY_NUM[info_from_filename[2]]
-
-        if isfile(author_file_location) and file_ext == '.xml':
+        if path.isfile(author_file_location):
             if category_num not in IGNORED_CATEGORIES:
                 author_text = grabAuthorText(
                     author_file_location,
@@ -137,17 +161,16 @@ def createCSVFile(
                 )
                 if author_text:
                     csv_writer.writerow([
-                        category_num,          # Category Number
-                        info_from_filename[2], # Category
-                        info_from_filename[0], # Author ID
-                        author_text,           # Text
+                        category_num,                  # Category Number
+                        author_categories[author_idx], # Category
+                        author_ids[author_idx],        # Author ID
+                        author_text,                   # Text
                     ])
                     category_counts[category_num] += 1
                 else:
                     with print_lock:
                         print(
-                            'Author had NoneType in conversation:\n'
-                            f'\tid: {info_from_filename[0]}\n'
+                            'Author had NoneType in text body:\n'
                             f'\tfile: {author_file_location}'
                         )
                         print('Skipping this author.')
@@ -157,60 +180,87 @@ def createCSVFile(
     csv_file.close()
 
     with print_lock:
-        print(f'Finished making \'{csv_file_name}\'.')
+        print(f'Finished making \'{csv_filename}\'.')
 
-    csv_file_name_with_info = csv_file_prefix
-    csv_file_name_with_info += '_' + str(sum(category_counts))
+    csv_file_name_with_info = csv_file_prefix + '_' + str(sum(category_counts))
     for category_count in category_counts:
         csv_file_name_with_info += '-' + str(category_count)
     csv_file_name_with_info += '.csv'
-    csv_file_location_with_info = join(csv_path, csv_file_name_with_info)
+    csv_file_location_with_info = path.join(csv_path, csv_file_name_with_info)
     os.rename(
         csv_file_location,
         csv_file_location_with_info,
     )
-
     with print_lock:
         print(
-            f'Moved \'{csv_file_name}\' to',
+            f'Moved \'{csv_filename}\' to',
             f'\'{csv_file_location_with_info}\'.',
         )
 
 #
-def grabAuthors(csv_path, xml_path, print_lock):
+def grabAuthors(truth_file, xml_path, csv_path, print_lock):
     with print_lock:
         print('Getting Authors...')
 
-    xml_file_names = os.listdir(xml_path)
-    len_xml_file_names = len(xml_file_names)
+    author_ids = []
+    author_categories = []
+    author_filenames = []
 
-    arg_list = []
+    if IS_PAN13:
+        for author_truth in open(truth_file, 'r'):
+            author_truth = author_truth[:-1]
+            author_info = author_truth.split(':::')
+            if len(author_info) > 2:
+                author_filename = '_'.join((
+                    author_info[0],
+                    'en',
+                    author_info[2],
+                    author_info[1],
+                )) + '.xml'
 
-    num_csv_files = (len_xml_file_names // BATCH_SIZE) + 1
+                author_ids.append(author_info[0])
+                author_categories.append(author_info[2] + '_' + author_info[1])
+                author_filenames.append(author_filename)
+    else:
+        for author_truth in open(truth_file, 'r'):
+            author_truth = author_truth[:-1]
+            author_info = author_truth.split(':::')
+            if len(author_info) > 2:
+                author_ids.append(author_info[0])
+                author_categories.append(author_info[1])
+                author_filenames.append(author_info[0] + '.xml')
 
+
+    num_authors = len(author_filenames)
+    num_csv_files = (num_authors // BATCH_SIZE) + 1
+
+    argument_lists = []
     for idx in range(0, num_csv_files -1):
         start_idx = idx*BATCH_SIZE
         end_idx   = idx*BATCH_SIZE +BATCH_SIZE -1
-        arg_list.append((
+        argument_lists.append((
             xml_path,
-            xml_file_names[start_idx:end_idx],
             csv_path,
+            author_ids[start_idx:end_idx],
+            author_categories[start_idx:end_idx],
+            author_filenames[start_idx:end_idx],
             f'Authors_{start_idx :06d}-{end_idx :06d}',
-            print_lock
+            print_lock,
         ))
-
     start_idx = (num_csv_files -1)*BATCH_SIZE
-    arg_list.append((
+    argument_lists.append((
         xml_path,
-        xml_file_names[start_idx : len_xml_file_names],
-            csv_path,
-            f'Authors_{start_idx :06d}-{len_xml_file_names :06d}',
-            print_lock
+        csv_path,
+        author_ids[start_idx:num_authors],
+        author_categories[start_idx:num_authors],
+        author_filenames[start_idx:num_authors],
+        f'Authors_{start_idx :06d}-{num_authors :06d}',
+        print_lock,
     ))
 
     if MULTIPROCESSING:
         processes = []
-        for idx, arguments in enumerate(arg_list):
+        for idx, arguments in enumerate(argument_lists):
             processes.append(
                 Process(target=createCSVFile, args=arguments)
             )
@@ -219,23 +269,37 @@ def grabAuthors(csv_path, xml_path, print_lock):
         for process in processes:
             process.join()
     else:
-        for arguments in arg_list:
+        for arguments in argument_lists:
             createCSVFile(*arguments)
 
 #
 def grabArguments():
-    if len(sys.argv) < 3:
+    if len(sys.argv) < 4:
         print(
             'Please pass the following in order:\n'
+            '\tThe PAN truth file.\n'
             '\tThe path in which the xml data is.\n'
             '\tThe path in which to place the CSV files.'
         )
         sys.exit(0)
 
-    data_path = sys.argv[1]
-    output_path = sys.argv[2]
+    if not path.isfile(sys.argv[1]):
+        print(f'The following is not a file:\n\t{sys.argv[1]}')
+        sys.exit(0)
 
-    return output_path, data_path
+    if not path.isdir(sys.argv[2]):
+        print(f'The following is not a directory:\n\t{sys.argv[2]}')
+        sys.exit(0)
+
+    if not path.isdir(sys.argv[3]):
+        print(f'The following is not a directory:\n\t{sys.argv[3]}')
+        sys.exit(0)
+
+    truth_file = sys.argv[1]
+    xml_path = sys.argv[2]
+    csv_path = sys.argv[3]
+
+    return truth_file, xml_path, csv_path
 
 
 #---------------------------------------------------------------------------
@@ -246,5 +310,6 @@ if __name__ == '__main__':
     manager = Manager()
     print_lock = manager.Lock()
 
-    output_path, data_path = grabArguments()
-    grabAuthors(output_path, data_path, print_lock)
+    truth_file, csv_path, xml_path = grabArguments()
+
+    grabAuthors(truth_file, csv_path, xml_path, print_lock)
