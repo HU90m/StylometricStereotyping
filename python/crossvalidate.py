@@ -4,7 +4,6 @@
 #
 USE_THUNDERSVM = True
 USE_CATBOOST = True
-N_SPLITS = 10
 
 
 #---------------------------------------------------------------------------
@@ -95,9 +94,9 @@ def cross_validate_model(
     y_train,
     is_classification=False,
     calculate_training_scores=True,
+    jobs=-1,
+    splits=10,
 ):
-    jobs = None if USE_THUNDERSVM else -1
-
     if is_classification:
         results = cross_validate(
             model,
@@ -105,7 +104,7 @@ def cross_validate_model(
             y_train,
             scoring='accuracy',
             return_train_score=calculate_training_scores,
-            cv=StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=42),
+            cv=StratifiedKFold(n_splits=splits, shuffle=True, random_state=42),
             n_jobs=jobs,
         )
         display = [
@@ -126,7 +125,7 @@ def cross_validate_model(
                 'r2',
             ),
             return_train_score=calculate_training_scores,
-            cv=KFold(n_splits=N_SPLITS, shuffle=True, random_state=42),
+            cv=KFold(n_splits=splits, shuffle=True, random_state=42),
             n_jobs=jobs,
         )
         display = [
@@ -163,6 +162,7 @@ def cross_validate_cat_model(
     X_train,
     y_train,
     is_classification=False,
+    splits=10,
 ):
     dataset = cat.Pool(
         data=X_train,
@@ -245,19 +245,22 @@ if __name__ == '__main__':
         cross_validate_model(Ridge(), vectors, targets)
 
     elif model == 'catboost':
-        print('Cross Validating Model...')
-        parameters = {
-            "iterations": 2,
-            "depth": 2,
-            "verbose": False,
-            "task_type": "GPU",
-        }
-        cross_validate_cat_model(
-            parameters,
-            vectors,
-            targets,
-            is_classification=False,
-        )
+        if not USE_CATBOOST:
+            print('catboost needs to be enabled to use this model')
+        else:
+            print('Cross Validating Model...')
+            parameters = {
+                "iterations": 2,
+                "depth": 2,
+                "verbose": False,
+                "task_type": "GPU",
+            }
+            cross_validate_cat_model(
+                parameters,
+                vectors,
+                targets,
+                is_classification=False,
+            )
 
     elif model == 'lasso':
         print('Cross Validating Model...')
@@ -269,7 +272,8 @@ if __name__ == '__main__':
 
     elif model == 'svr':
         print('Cross Validating Model...')
-        cross_validate_model(SVR(), vectors, targets)
+        jobs = None if USE_THUNDERSVM else -1
+        cross_validate_model(SVR(), vectors, targets, jobs=jobs)
 
     elif model == 'lin_svc':
         print('Grouping Reliabilities into Bins...')
@@ -288,29 +292,35 @@ if __name__ == '__main__':
         maleOrFemale_bins = [MaleFemaleSplit(item) for item in targets]
 
         print('Cross Validating Model...')
+        jobs = None if USE_THUNDERSVM else -1
         cross_validate_model(
             SVC(),
             vectors,
             maleOrFemale_bins,
             is_classification=True,
+            jobs=jobs,
+            splits=2,
         )
 
     elif model == 'category_catboost':
-        print('Grouping Data into Female/Male Bins...')
-        maleOrFemale_bins = [MaleFemaleSplit(item) for item in targets]
+        if not USE_CATBOOST:
+            print('catboost needs to be enabled to use this model')
+        else:
+            print('Grouping Data into Female/Male Bins...')
+            maleOrFemale_bins = [MaleFemaleSplit(item) for item in targets]
 
-        print('Cross Validating Model...')
-        parameters = {
-            "iterations": 2,
-            "depth": 2,
-            "verbose": False,
-            "task_type": "GPU",
-        }
-        cross_validate_cat_model(
-            parameters,
-            vectors,
-            maleOrFemale_bins,
-            is_classification=True,
-        )
+            print('Cross Validating Model...')
+            parameters = {
+                "iterations": 2,
+                "depth": 2,
+                "verbose": False,
+                "task_type": "GPU",
+            }
+            cross_validate_cat_model(
+                parameters,
+                vectors,
+                maleOrFemale_bins,
+                is_classification=True,
+            )
 
     print('All Done.')
