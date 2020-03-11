@@ -4,6 +4,7 @@
 #
 USE_THUNDERSVM = True
 USE_CATBOOST = True
+USE_TENSORFLOW = True
 
 
 #---------------------------------------------------------------------------
@@ -28,13 +29,18 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import cross_validate
 
 
-if USE_CATBOOST:
-    import catboost as cat
-
 if USE_THUNDERSVM:
     from thundersvm import SVR, SVC
 else:
     from sklearn.svm import SVR, SVC
+
+if USE_CATBOOST:
+    import catboost as cat
+
+if USE_TENSORFLOW:
+    from tensorflow import keras
+    from tensorflow.keras.wrappers.scikit_learn import KerasClassifier
+    from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
 
 
 #---------------------------------------------------------------------------
@@ -52,12 +58,15 @@ CATEGORY_NUM = {
 MODELS = (
     'ridge',
     'catboost',
+    'nn',
     'lasso',
+    'clf_nn',
     'sgd',
     'svr',
     'lin_svc',
     'category_svm',
     'category_catboost',
+    'category_nn',
 )
 
 
@@ -183,6 +192,42 @@ def cross_validate_cat_model(
     print(results)
 
 
+def make_net(build_num_features=300, build_classifier=False):
+
+    net = keras.models.Sequential()
+
+    # 2 fully connected layers with a ReLU activation function
+    net.add(keras.layers.Dense(
+        units=16,
+        activation='relu',
+        input_shape=(build_num_features,),
+    ))
+    net.add(keras.layers.Dense(
+        units=16,
+        activation='relu',
+        input_shape=(build_num_features,),
+    ))
+
+    # fully connected layer with sigmoid activation
+    net.add(keras.layers.Dense(
+        units=1,
+        activation='sigmoid',
+    ))
+
+    if build_classifier:
+        net.compile(
+            loss='binary_crossentropy',
+            optimizer='rmsprop',
+            metrics=['accuracy'],
+        )
+    else:
+        net.compile(
+            loss='mean_squared_error',
+            optimizer='adam',
+        )
+    return net
+
+
 def grabArguments():
     if len(sys.argv) < 4:
         print(
@@ -262,6 +307,30 @@ if __name__ == '__main__':
                 is_classification=False,
             )
 
+    elif model == 'nn':
+        if not USE_TENSORFLOW:
+            print('tensorflow needs to be enabled to use this model')
+        elif is_sparse:
+            print('This model does not support sparse matrices at present.')
+        else:
+            print('Building Model...')
+            network = KerasRegressor(
+                build_fn=make_net,
+                build_num_features=vectors.shape[1],
+                build_classifier=False,
+                epochs=1,
+                batch_size=100,
+                verbose=0,
+            )
+            print('Cross Validating Model...')
+            cross_validate_model(
+                network,
+                vectors,
+                targets,
+                jobs=None,
+                splits=2,
+            )
+
     elif model == 'lasso':
         print('Cross Validating Model...')
         cross_validate_model(Lasso(), vectors, targets)
@@ -321,6 +390,35 @@ if __name__ == '__main__':
                 vectors,
                 maleOrFemale_bins,
                 is_classification=True,
+            )
+
+    elif model == 'category_nn':
+        if not USE_TENSORFLOW:
+            print('tensorflow needs to be enabled to use this model')
+        elif is_sparse:
+            print('This model does not support sparse matrices at present.')
+        else:
+            print('Grouping Data into Female/Male Bins...')
+            maleOrFemale_bins = [MaleFemaleSplit(item) for item in targets]
+
+            print('Building Model...')
+            network = KerasClassifier(
+                build_fn=make_net,
+                build_num_features=vectors.shape[1],
+                build_classifier=False,
+                epochs=1,
+                batch_size=100,
+                verbose=0,
+            )
+
+            print('Cross Validating Model...')
+            cross_validate_model(
+                network,
+                vectors,
+                maleOrFemale_bins,
+                is_classification=True,
+                jobs=None,
+                splits=2,
             )
 
     print('All Done.')
