@@ -1,11 +1,4 @@
 #---------------------------------------------------------------------------
-# Settings
-#---------------------------------------------------------------------------
-#
-PROGRESS_BAR=False
-
-
-#---------------------------------------------------------------------------
 # Imports
 #---------------------------------------------------------------------------
 #
@@ -21,10 +14,6 @@ from scipy import sparse
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.pipeline import FeatureUnion
-
-if PROGRESS_BAR:
-    from tqdm import tqdm
-
 
 #---------------------------------------------------------------------------
 # Functions
@@ -61,10 +50,7 @@ def vectorizeText(texts):
         ('word:', word_vectorizer),
         ('char:', char_vectorizer),
     ])
-    if PROGRESS_BAR:
-        vectors = vectorizer.fit_transform(tqdm(texts))
-    else:
-        vectors = vectorizer.fit_transform(texts)
+    vectors = vectorizer.fit_transform(texts)
     return vectorizer, vectors
 
 def grabArguments():
@@ -76,6 +62,14 @@ def grabArguments():
             '\tThe number of files form which to grab data.\n'
             '\t\t(negative value grabs data from all files).\n'
         )
+        sys.exit(0)
+
+    if not path.isdir(sys.argv[1]):
+        print(f'The following is not a directory:\n\t{sys.argv[1]}')
+        sys.exit(0)
+
+    if not path.isdir(sys.argv[2]):
+        print(f'The following is not a directory:\n\t{sys.argv[2]}')
         sys.exit(0)
 
     csv_path = sys.argv[1]
