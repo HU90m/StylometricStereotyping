@@ -63,25 +63,43 @@ def reduceDimensionality(reduction_technique, vectors, reliability_bins):
     return reducer, vectors_reduced
 
 def grabArguments():
-    if len(sys.argv) < 3:
+    if len(sys.argv) < 5:
         print(
             'Please pass in order:\n'
-            '\tThe vector directory.\n'
+            '\tThe input vector file.\n'
+            '\tThe reliabilities file.\n'
+            '\tThe output (reduced) vector file.\n'
             '\tThe reduction technique.\n'
             '\t\tMust be either: \'tsne\',\'lda\', or \'lsa\'.'
         )
         sys.exit(0)
 
-    if sys.argv[2] not in ('tsne', 'lda', 'lsa'):
+    if not path.isfile(sys.argv[1]):
+        print('The following is not a file:')
+        print(f'\t{sys.argv[1]}')
+        sys.exit(0)
+    if not path.isfile(sys.argv[2]):
+        print('The following is not a file:')
+        print(f'\t{sys.argv[2]}')
+        sys.exit(0)
+
+    if sys.argv[4] not in ('tsne', 'lda', 'lsa'):
         print(
             'The reduction technique must be either: '
             '\'tsne\',\'lda\', or \'lsa\'.'
         )
         sys.exit(0)
 
-    vector_dir = sys.argv[1]
-    reduction_technique = sys.argv[2]
-    return vector_dir, reduction_technique
+    vectors_file = sys.argv[1]
+    reliabilities_file = sys.argv[2]
+    reduced_vectors_file = sys.argv[3]
+    reduction_technique = sys.argv[4]
+    return (
+        vectors_file,
+        reliabilities_file,
+        reduced_vectors_file,
+        reduction_technique,
+    )
 
 
 #---------------------------------------------------------------------------
@@ -89,19 +107,13 @@ def grabArguments():
 #---------------------------------------------------------------------------
 #
 if __name__ == '__main__':
-    vector_dir, reduction_technique = grabArguments()
+    (
+        vectors_file,
+        reliabilities_file,
+        reduced_vectors_file,
+        reduction_technique,
+    ) = grabArguments()
 
-    vectors_file = path.join(vector_dir, 'vectors.npz')
-    reliabilities_file = path.join(vector_dir, 'reliabilities.npy')
-
-    reducer_file = path.join(
-        vector_dir,
-        f'{reduction_technique}_reducer.obj',
-    )
-    reduced_vectors_file = path.join(
-        vector_dir,
-        f'{reduction_technique}_reduced_vectors',
-    )
 
     print('Loading Vectors...')
     vectors = sparse.load_npz(vectors_file)
@@ -118,10 +130,6 @@ if __name__ == '__main__':
         vectors,
         reliability_bins,
     )
-
-    print('Saving Reducer...')
-    with open(reducer_file, 'wb') as reducer_file_p:
-        pickle.dump(reducer, reducer_file_p)
 
     print('Saving Reduced Vectors...')
     np.save(reduced_vectors_file, reduced_vectors)
