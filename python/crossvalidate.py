@@ -5,6 +5,7 @@
 USE_THUNDERSVM = True
 USE_CATBOOST = True
 USE_TENSORFLOW = True
+IS_PAN13 = False
 
 
 #---------------------------------------------------------------------------
@@ -47,14 +48,20 @@ if USE_TENSORFLOW:
 # Globals
 #---------------------------------------------------------------------------
 #
-CATEGORY_NUM = {
-    '30s_female' : 0,
-    '30s_male'   : 1,
-    '20s_male'   : 2,
-    '20s_female' : 3,
-    '10s_female' : 4,
-    '10s_male'   : 5,
-}
+if IS_PAN13:
+    CATEGORY_NUM = {
+        '30s_female' : 0,
+        '30s_male'   : 1,
+        '20s_male'   : 2,
+        '20s_female' : 3,
+        '10s_female' : 4,
+        '10s_male'   : 5,
+    }
+else:
+    CATEGORY_NUM = {
+        'bot'   : 0,
+        'human' : 1,
+    }
 MODELS = (
     'ridge',
     'catboost',
@@ -74,7 +81,7 @@ MODELS = (
 # Functions
 #---------------------------------------------------------------------------
 #
-def MaleFemaleSplit(category):
+def PAN13MaleFemaleSplit(category):
     if (category == CATEGORY_NUM['30s_female']
         or category ==  CATEGORY_NUM['20s_female']):
         return 0
@@ -181,13 +188,13 @@ def cross_validate_cat_model(
         results = cat.cv(
             dataset,
             parameters,
-            folds=StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=42),
+            folds=StratifiedKFold(n_splits=splits, shuffle=True, random_state=42),
         )
     else:
         results = cat.cv(
             dataset,
             parameters,
-            folds=KFold(n_splits=N_SPLITS, shuffle=True, random_state=42),
+            folds=KFold(n_splits=splits, shuffle=True, random_state=42),
         )
     print(results)
 
@@ -357,15 +364,16 @@ if __name__ == '__main__':
         )
 
     elif model == 'category_svm':
-        print('Grouping Data into Female/Male Bins...')
-        maleOrFemale_bins = [MaleFemaleSplit(item) for item in targets]
+        if IS_PAN13:
+            print('Grouping Data into Female/Male Bins...')
+            targets = [MaleFemaleSplit(item) for item in targets]
 
         print('Cross Validating Model...')
         jobs = None if USE_THUNDERSVM else -1
         cross_validate_model(
             SVC(),
             vectors,
-            maleOrFemale_bins,
+            targets,
             is_classification=True,
             jobs=jobs,
             splits=2,
@@ -375,8 +383,9 @@ if __name__ == '__main__':
         if not USE_CATBOOST:
             print('catboost needs to be enabled to use this model')
         else:
-            print('Grouping Data into Female/Male Bins...')
-            maleOrFemale_bins = [MaleFemaleSplit(item) for item in targets]
+            if IS_PAN13:
+                print('Grouping Data into Female/Male Bins...')
+                targets = [MaleFemaleSplit(item) for item in targets]
 
             print('Cross Validating Model...')
             parameters = {
@@ -388,8 +397,9 @@ if __name__ == '__main__':
             cross_validate_cat_model(
                 parameters,
                 vectors,
-                maleOrFemale_bins,
+                targets,
                 is_classification=True,
+                splits=3,
             )
 
     elif model == 'category_nn':
@@ -398,8 +408,9 @@ if __name__ == '__main__':
         elif is_sparse:
             print('This model does not support sparse matrices at present.')
         else:
-            print('Grouping Data into Female/Male Bins...')
-            maleOrFemale_bins = [MaleFemaleSplit(item) for item in targets]
+            if IS_PAN13:
+                print('Grouping Data into Female/Male Bins...')
+                targets = [MaleFemaleSplit(item) for item in targets]
 
             print('Building Model...')
             network = KerasClassifier(
@@ -415,7 +426,7 @@ if __name__ == '__main__':
             cross_validate_model(
                 network,
                 vectors,
-                maleOrFemale_bins,
+                targets,
                 is_classification=True,
                 jobs=None,
                 splits=2,
