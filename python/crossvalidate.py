@@ -2,9 +2,9 @@
 # Settings
 #---------------------------------------------------------------------------
 #
-USE_THUNDERSVM = True
+USE_THUNDERSVM = False
 USE_CATBOOST = True
-USE_TENSORFLOW = True
+USE_TENSORFLOW = False
 IS_PAN13 = False
 
 
@@ -23,7 +23,7 @@ import numpy as np
 from sklearn.linear_model import Ridge
 from sklearn.linear_model import Lasso
 from sklearn.linear_model import SGDRegressor
-from sklearn.svm import LinearSVC
+from sklearn.svm import LinearSVC, LinearSVR
 
 from sklearn.model_selection import KFold
 from sklearn.model_selection import StratifiedKFold
@@ -39,7 +39,7 @@ if USE_CATBOOST:
     import catboost as cat
 
 if USE_TENSORFLOW:
-    from tensorflow import keras
+    from tensorflow import keras as ks
     from tensorflow.keras.wrappers.scikit_learn import KerasClassifier
     from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
 
@@ -70,6 +70,7 @@ MODELS = (
     'clf_nn',
     'sgd',
     'svr',
+    'lin_svr',
     'lin_svc',
     'category_svm',
     'category_catboost',
@@ -199,32 +200,27 @@ def cross_validate_cat_model(
     print(results)
 
 
-def make_net(build_num_features=300, build_classifier=False):
+def make_net(
+    build_num_features=300,
+    build_classifier=False,
+    activation='relu',
+    is_sparse=False,
+):
 
-    net = keras.models.Sequential()
+    inputs = ks.layers.Input(shape=build_num_features, sparse=is_sparse)
 
-    # 2 fully connected layers with a ReLU activation function
-    net.add(keras.layers.Dense(
-        units=16,
-        activation='relu',
-        input_shape=(build_num_features,),
-    ))
-    net.add(keras.layers.Dense(
-        units=16,
-        activation='relu',
-        input_shape=(build_num_features,),
-    ))
+    hidden_tmp = ks.layers.Dense(256, activation=activation)(inputs)
+    for idx in range(100):
+        hidden_tmp = ks.layers.Dense(256, activation=activation)(hidden_tmp)
 
-    # fully connected layer with sigmoid activation
-    net.add(keras.layers.Dense(
-        units=1,
-        activation='sigmoid',
-    ))
+    predictions = ks.layers.Dense(1, activation='sigmoid')(hidden_tmp)
+
+    net = ks.models.Model(inputs=inputs, outputs=predictions)
 
     if build_classifier:
         net.compile(
             loss='binary_crossentropy',
-            optimizer='rmsprop',
+            optimizer='adadelta',
             metrics=['accuracy'],
         )
     else:
@@ -286,9 +282,10 @@ if __name__ == '__main__':
     else:
         vectors = np.load(vectors_file, allow_pickle=True)
         is_sparse = False
+    print(f'loaded vectors file of shape: {vectors.shape}')
 
 
-    print('Loading Reliabilities...')
+    print('Loading Targets...')
     targets = np.load(targets_file, allow_pickle=True)
 
 
@@ -302,8 +299,8 @@ if __name__ == '__main__':
         else:
             print('Cross Validating Model...')
             parameters = {
-                "iterations": 2,
-                "depth": 2,
+                "iterations": 100,
+                "depth": 6,
                 "verbose": False,
                 "task_type": "GPU",
             }
@@ -317,8 +314,6 @@ if __name__ == '__main__':
     elif model == 'nn':
         if not USE_TENSORFLOW:
             print('tensorflow needs to be enabled to use this model')
-        elif is_sparse:
-            print('This model does not support sparse matrices at present.')
         else:
             print('Building Model...')
             network = KerasRegressor(
@@ -351,16 +346,27 @@ if __name__ == '__main__':
         jobs = None if USE_THUNDERSVM else -1
         cross_validate_model(SVR(), vectors, targets, jobs=jobs)
 
+    elif model == 'lin_svr':
+        print('Cross Validating Model...')
+        cross_validate_model(
+            LinearSVR(),
+            vectors,
+            targets,
+            is_classification=False,
+            splits=3,
+        )
+
     elif model == 'lin_svc':
-        print('Grouping Reliabilities into Bins...')
-        reliability_bins = [putIn2Bins(item) for item in targets]
+        #print('Grouping Reliabilities into Bins...')
+        #reliability_bins = [putIn2Bins(item) for item in targets]
 
         print('Cross Validating Model...')
         cross_validate_model(
             LinearSVC(),
             vectors,
-            reliability_bins,
+            targets,
             is_classification=True,
+            splits=4,
         )
 
     elif model == 'category_svm':
@@ -376,7 +382,7 @@ if __name__ == '__main__':
             targets,
             is_classification=True,
             jobs=jobs,
-            splits=2,
+            splits=3,
         )
 
     elif model == 'category_catboost':
@@ -389,8 +395,8 @@ if __name__ == '__main__':
 
             print('Cross Validating Model...')
             parameters = {
-                "iterations": 2,
-                "depth": 2,
+                #"iterations": 2,
+                #"depth": 2,
                 "verbose": False,
                 "task_type": "GPU",
             }
@@ -405,8 +411,6 @@ if __name__ == '__main__':
     elif model == 'category_nn':
         if not USE_TENSORFLOW:
             print('tensorflow needs to be enabled to use this model')
-        elif is_sparse:
-            print('This model does not support sparse matrices at present.')
         else:
             if IS_PAN13:
                 print('Grouping Data into Female/Male Bins...')
