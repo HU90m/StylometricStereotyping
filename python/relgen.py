@@ -2,6 +2,8 @@
 # Settings
 #---------------------------------------------------------------------------
 #
+OUTPUT = True
+FIND_DIVERGENCE = True
 CHECK_DISTRIBUTIONS = True
 
 IS_PAN13 = False
@@ -15,6 +17,7 @@ IS_PAN13 = False
 import sys
 from os import path
 import numpy as np
+from scipy.special import gamma, digamma
 
 if CHECK_DISTRIBUTIONS:
     from matplotlib import pyplot as plt
@@ -66,8 +69,8 @@ else:
             1 : (30, 20),
         },
         'much' : {
-            0 : (20, 30),
-            1 : (30, 20),
+            0 : (20, 25),
+            1 : (25, 20),
         },
     }
 
@@ -77,16 +80,21 @@ else:
 #---------------------------------------------------------------------------
 #
 def grabArguments():
-    if len(sys.argv) < 2:
-        print('Please pass the vectors directory.')
+    if len(sys.argv) < 3:
+        print(
+            'Please pass in order:\n'
+            '\tThe input categories file.\n'
+            '\tThe output reliabilities file prefix.\n'
+        )
         sys.exit(0)
 
-    if not path.isdir(sys.argv[1]):
+    if not path.isfile(sys.argv[1]):
         print(f'The following is not a directory:\n\t{sys.argv[1]}')
         sys.exit(0)
 
-    vector_dir = sys.argv[1]
-    return vector_dir
+    categories_file = sys.argv[1]
+    reliabilities_prefix = sys.argv[2]
+    return categories_file, reliabilities_prefix
 
 
 #---------------------------------------------------------------------------
@@ -94,9 +102,7 @@ def grabArguments():
 #---------------------------------------------------------------------------
 #
 if __name__ == '__main__':
-    vector_dir = grabArguments()
-
-    categories_file = path.join(vector_dir, 'categories.npy')
+    categories_file, reliabilities_prefix = grabArguments()
 
     print('Loading Categories...')
     categories = np.load(categories_file, allow_pickle=True)
@@ -104,22 +110,39 @@ if __name__ == '__main__':
     reliabilities = {}
 
     for distribution_name, category_beta in CATEGORY_BETAS.items():
-        reliabilities_file = path.join(
-            vector_dir,
-            'reliabilities_' + distribution_name,
-        )
+        reliabilities_file = reliabilities_prefix + '_' + distribution_name
 
         print(f'Generating \'{distribution_name}\' Reliabilities...')
         reliabilities[distribution_name] = np.array(
             [np.random.beta(*category_beta[item]) for item in categories]
         )
 
-        print(f'Saving \'{distribution_name}\' Reliabilities...')
-        np.save(reliabilities_file, reliabilities[distribution_name])
+        # https://math.wikia.org/wiki/Beta_distribution
+        if FIND_DIVERGENCE:
+            def B(a, b):
+                return (gamma(a)*gamma(b))/gamma(a + b)
+            a_0 = category_beta[0][0]
+            b_0 = category_beta[0][1]
+            a_1 = category_beta[1][0]
+            b_1 = category_beta[1][1]
+
+            KL = np.log(B(a_1, b_1)/B(a_0, b_0)) \
+                - (a_1 - a_0)*digamma(a_0) \
+                - (b_1 - b_0)*digamma(b_0) \
+                + (a_1 - a_0 + b_1 - b_0)*digamma(a_0 + b_0)
+
+            print(
+                f"For '{distribution_name}', "
+                f"the KL of '{CATEGORY_NAME[0]}' compared to "
+                f"'{CATEGORY_NAME[1]}' is {KL}"
+            )
+
+        if OUTPUT:
+            print(f'Saving \'{distribution_name}\' Reliabilities...')
+            np.save(reliabilities_file, reliabilities[distribution_name])
 
 
     if CHECK_DISTRIBUTIONS:
-
         print('Preparing Histogram...')
 
         fig, plots = plt.subplots(nrows=len(CATEGORY_BETAS), ncols=1)
@@ -127,7 +150,6 @@ if __name__ == '__main__':
         category_selections = [
             categories == cat_num for cat_num in range(len(CATEGORY_NAME))
         ]
-
         for idx, distribution_name in enumerate(CATEGORY_BETAS):
 
             seperated_reliabilities = [

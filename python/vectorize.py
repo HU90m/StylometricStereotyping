@@ -54,28 +54,34 @@ def vectorizeText(texts):
     return vectorizer, vectors
 
 def grabArguments():
-    if len(sys.argv) < 4:
+    if len(sys.argv) < 3:
         print(
             'Please pass in order:\n'
             '\tThe directory containing the author text CSV files.\n'
             '\tThe name of output path.\n'
-            '\tThe number of files form which to grab data.\n'
-            '\t\t(negative value grabs data from all files).\n'
+            '\t[optional] The directory containing the test CSV files.\n'
         )
         sys.exit(0)
 
     if not path.isdir(sys.argv[1]):
         print(f'The following is not a directory:\n\t{sys.argv[1]}')
         sys.exit(0)
+    csv_path = sys.argv[1]
 
     if not path.isdir(sys.argv[2]):
         print(f'The following is not a directory:\n\t{sys.argv[2]}')
         sys.exit(0)
-
-    csv_path = sys.argv[1]
     output_path = sys.argv[2]
-    num_files = int(sys.argv[3])
-    return csv_path, output_path, num_files
+
+    if len(sys.argv) > 3:
+        if not path.isdir(sys.argv[3]):
+            print(f'The following is not a directory:\n\t{sys.argv[3]}')
+            sys.exit(0)
+        test_csv_path = sys.argv[3]
+    else:
+        test_csv_path = None
+
+    return csv_path, output_path, test_csv_path
 
 
 #---------------------------------------------------------------------------
@@ -83,7 +89,7 @@ def grabArguments():
 #---------------------------------------------------------------------------
 #
 if __name__ == '__main__':
-    csv_path, output_path, number_of_files = grabArguments()
+    csv_path, output_path, test_csv_path = grabArguments()
 
     vectorizer_file = path.join(output_path, 'vectorizer.obj')
     vectors_file = path.join(output_path, 'vectors.npz')
@@ -91,12 +97,12 @@ if __name__ == '__main__':
 
 
     print('Importing CSV...')
-    data_frame = grabAuthors(csv_path, num_files=number_of_files)
+    data_frame = grabAuthors(csv_path)
 
     print('Vectorising Data...')
     vectorizer, vectors = vectorizeText(data_frame.iloc[:, 3])
 
-    print('Saving Vectorizer...')
+    print('Saving Vectoriser...')
     with open(vectorizer_file, 'wb') as vec_file_p:
         pickle.dump(vectorizer, vec_file_p)
 
@@ -105,5 +111,21 @@ if __name__ == '__main__':
 
     print('Saving Categories...')
     np.save(categories_file, np.array(data_frame.iloc[:, 0]))
+
+    if test_csv_path:
+        test_vectors_file = path.join(output_path, 'test-vectors.npz')
+        test_categories_file = path.join(output_path, 'test-categories')
+
+        print('Importing Test CSV...')
+        test_data_frame = grabAuthors(test_csv_path)
+
+        print('Vectorising Test Data...')
+        test_vectors = vectorizer.transform(test_data_frame.iloc[:, 3])
+
+        print('Saving Test Vectors...')
+        sparse.save_npz(test_vectors_file, test_vectors)
+
+        print('Saving Test Categories...')
+        np.save(test_categories_file, np.array(test_data_frame.iloc[:, 0]))
 
     print('All Done')

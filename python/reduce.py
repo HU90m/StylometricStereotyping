@@ -2,6 +2,7 @@
 # Settings
 #---------------------------------------------------------------------------
 #
+IMPORT_REDUCER = True
 NUM_DIMENSIONS = 300
 TSNE_NUM_DIMENSIONS = 3
 LDA_FIT_PERCENTAGE = 0.60
@@ -63,12 +64,13 @@ def reduceDimensionality(reduction_technique, vectors, reliability_bins):
     return reducer, vectors_reduced
 
 def grabArguments():
-    if len(sys.argv) < 5:
+    if len(sys.argv) < 6:
         print(
             'Please pass in order:\n'
             '\tThe input vector file.\n'
             '\tThe reliabilities file.\n'
             '\tThe output (reduced) vector file.\n'
+            '\tThe reducer file.\n'
             '\tThe reduction technique.\n'
             '\t\tMust be either: \'tsne\',\'lda\', or \'lsa\'.'
         )
@@ -83,7 +85,7 @@ def grabArguments():
         print(f'\t{sys.argv[2]}')
         sys.exit(0)
 
-    if sys.argv[4] not in ('tsne', 'lda', 'lsa'):
+    if sys.argv[5] not in ('tsne', 'lda', 'lsa'):
         print(
             'The reduction technique must be either: '
             '\'tsne\',\'lda\', or \'lsa\'.'
@@ -93,11 +95,13 @@ def grabArguments():
     vectors_file = sys.argv[1]
     reliabilities_file = sys.argv[2]
     reduced_vectors_file = sys.argv[3]
-    reduction_technique = sys.argv[4]
+    reducer_file = sys.argv[4]
+    reduction_technique = sys.argv[5]
     return (
         vectors_file,
         reliabilities_file,
         reduced_vectors_file,
+        reducer_file,
         reduction_technique,
     )
 
@@ -111,6 +115,7 @@ if __name__ == '__main__':
         vectors_file,
         reliabilities_file,
         reduced_vectors_file,
+        reducer_file,
         reduction_technique,
     ) = grabArguments()
 
@@ -124,12 +129,26 @@ if __name__ == '__main__':
     print('Grouping Reliabilities into Bins...')
     reliability_bins = [putInBin(item) for item in reliabilities]
 
-    print('Reducing Data...')
-    reducer, reduced_vectors = reduceDimensionality(
-        reduction_technique,
-        vectors,
-        reliability_bins,
-    )
+    if IMPORT_REDUCER:
+        print('Reducing Data...')
+        with open(reducer_file, 'rb') as reducer_file_p:
+            reducer = pickle.load(reducer_file_p)
+        if reduction_technique == 'lda':
+            reduced_vectors = reducer.transform(vectors.toarray())
+        else:
+            reduced_vectors = reducer.transform(vectors)
+    else:
+        print('Reducing Data...')
+        reducer, reduced_vectors = reduceDimensionality(
+            reduction_technique,
+            vectors,
+            reliability_bins,
+        )
+
+        print('Saving Reducer...')
+        with open(reducer_file, 'wb') as reducer_file_p:
+            pickle.dump(reducer, reducer_file_p)
+
 
     print('Saving Reduced Vectors...')
     np.save(reduced_vectors_file, reduced_vectors)
