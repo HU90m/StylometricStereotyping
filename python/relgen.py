@@ -1,13 +1,14 @@
+#!/bin/python3
 #---------------------------------------------------------------------------
 # Settings
 #---------------------------------------------------------------------------
 #
 OUTPUT = True
 FIND_DIVERGENCE = True
-CHECK_DISTRIBUTIONS = True
+CHECK_DISTRIBUTIONS = False
 
 IS_PAN13 = False
-
+SEED=42
 
 
 #---------------------------------------------------------------------------
@@ -17,9 +18,12 @@ IS_PAN13 = False
 import sys
 from os import path
 import numpy as np
-from scipy.special import gamma, digamma
+
+if FIND_DIVERGENCE:
+    from scipy.special import gamma, digamma
 
 if CHECK_DISTRIBUTIONS:
+    from scipy.stats import beta
     from matplotlib import pyplot as plt
 
 
@@ -33,6 +37,12 @@ if IS_PAN13:
         1 : '30s_male',
         2 : '20s_female',
         3 : '20s_male',
+    }
+    CATEGORY_COLOR = {
+        0 : 'red',
+        1 : 'blue',
+        2 : 'orange',
+        3 : 'cyan',
     }
     CATEGORY_BETAS = {
         'little' : {
@@ -54,25 +64,49 @@ if IS_PAN13:
             3 : (10, 15),
         },
     }
+    PRINT_BETA = (
+        'little',
+        'some',
+        'much',
+    )
 else:
     CATEGORY_NAME = {
         0 : 'bot',
         1 : 'human',
     }
+    CATEGORY_COLOR = {
+        0 : 'dimgrey',
+        1 : 'darkturquoise',
+    }
     CATEGORY_BETAS = {
-        'little' : {
-            0 : (40, 60),
-            1 : (60, 40),
+        'vsimilar' : {
+            0 : (5, 5),
+            1 : (5, 2),
         },
-        'some' : {
-            0 : (20, 30),
-            1 : (30, 20),
+        'similar' : {
+            0 : (3, 5),
+            1 : (5, 2),
         },
-        'much' : {
-            0 : (20, 25),
-            1 : (25, 20),
+        'different' : {
+            0 : (2, 5),
+            1 : (5, 2),
+        },
+        'vdifferent' : {
+            0 : (4, 20),
+            1 : (5, 2),
+        },
+        'vvdifferent' : {
+            0 : (4, 30),
+            1 : (5, 2),
         },
     }
+    PRINT_BETA = (
+        'vsimilar',
+        #'similar',
+        'different',
+        'vdifferent',
+        #'vvdifferent',
+    )
 
 
 #---------------------------------------------------------------------------
@@ -107,6 +141,7 @@ if __name__ == '__main__':
     print('Loading Categories...')
     categories = np.load(categories_file, allow_pickle=True)
 
+    np.random.seed(SEED)
     reliabilities = {}
 
     for distribution_name, category_beta in CATEGORY_BETAS.items():
@@ -145,12 +180,12 @@ if __name__ == '__main__':
     if CHECK_DISTRIBUTIONS:
         print('Preparing Histogram...')
 
-        fig, plots = plt.subplots(nrows=len(CATEGORY_BETAS), ncols=1)
+        fig, plots = plt.subplots(ncols=len(PRINT_BETA), nrows=1)
 
         category_selections = [
             categories == cat_num for cat_num in range(len(CATEGORY_NAME))
         ]
-        for idx, distribution_name in enumerate(CATEGORY_BETAS):
+        for idx, distribution_name in enumerate(PRINT_BETA):
 
             seperated_reliabilities = [
                 reliabilities[distribution_name][selection]
@@ -158,15 +193,23 @@ if __name__ == '__main__':
             ]
 
             for cat_num in range(len(CATEGORY_NAME)):
-                plots[idx].hist(
+                n, bins, patches = plots[idx].hist(
                     x=seperated_reliabilities[cat_num],
-                    bins='auto',
+                    bins=100,
                     alpha=0.6,
+                    color=CATEGORY_COLOR[cat_num],
+                    density=True,
+                )
+                plots[idx].plot(
+                    bins,
+                    beta.pdf(bins, *CATEGORY_BETAS[distribution_name][cat_num]),
+                    color=CATEGORY_COLOR[cat_num],
                     label=CATEGORY_NAME[cat_num],
                 )
             plots[idx].set_title(distribution_name)
-            plots[idx].legend()
+            plots[idx].set(xlim=(0,1))
 
+        plots[len(plots)-1].legend()
         print('Displaying Histogram...')
         plt.show()
 
