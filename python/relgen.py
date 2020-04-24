@@ -79,6 +79,14 @@ else:
         1 : 'darkturquoise',
     }
     CATEGORY_BETAS = {
+        'vvvsimilar' : {
+            0 : (5, 3),
+            1 : (5, 2),
+        },
+        'vvsimilar' : {
+            0 : (5, 4),
+            1 : (5, 2),
+        },
         'vsimilar' : {
             0 : (5, 5),
             1 : (5, 2),
@@ -99,13 +107,20 @@ else:
             0 : (4, 30),
             1 : (5, 2),
         },
+        'vvvdifferent' : {
+            0 : (4, 40),
+            1 : (5, 2),
+        },
     }
     PRINT_BETA = (
-        'vsimilar',
+        'vvvsimilar',
+        #'vvsimilar',
+        #'vsimilar',
         #'similar',
         'different',
         'vdifferent',
         #'vvdifferent',
+        #'vvvdifferent',
     )
 
 
@@ -113,6 +128,14 @@ else:
 # Functions
 #---------------------------------------------------------------------------
 #
+def KLDiv(a_0, b_0, a_1, b_1):
+    def B(a, b):
+        return (gamma(a)*gamma(b))/gamma(a + b)
+    return np.log(B(a_1, b_1)/B(a_0, b_0)) \
+        - (a_1 - a_0)*digamma(a_0) \
+        - (b_1 - b_0)*digamma(b_0) \
+        + (a_1 - a_0 + b_1 - b_0)*digamma(a_0 + b_0)
+
 def grabArguments():
     if len(sys.argv) < 3:
         print(
@@ -154,18 +177,12 @@ if __name__ == '__main__':
 
         # https://math.wikia.org/wiki/Beta_distribution
         if FIND_DIVERGENCE:
-            def B(a, b):
-                return (gamma(a)*gamma(b))/gamma(a + b)
-            a_0 = category_beta[0][0]
-            b_0 = category_beta[0][1]
-            a_1 = category_beta[1][0]
-            b_1 = category_beta[1][1]
-
-            KL = np.log(B(a_1, b_1)/B(a_0, b_0)) \
-                - (a_1 - a_0)*digamma(a_0) \
-                - (b_1 - b_0)*digamma(b_0) \
-                + (a_1 - a_0 + b_1 - b_0)*digamma(a_0 + b_0)
-
+            KL = KLDiv(
+                category_beta[0][0],
+                category_beta[0][1],
+                category_beta[1][0],
+                category_beta[1][1],
+            )
             print(
                 f"For '{distribution_name}', "
                 f"the KL of '{CATEGORY_NAME[0]}' compared to "

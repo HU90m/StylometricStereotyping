@@ -1,3 +1,4 @@
+#!/bin/python3
 #---------------------------------------------------------------------------
 # Constants
 #---------------------------------------------------------------------------
@@ -275,6 +276,7 @@ def test_model(
     if is_classification:
         accuracy_result = accuracy_score(y_test, y_pred)
         print(f'The models accuracy is {accuracy_result}')
+        return accuracy_result
     else:
         r2_result = r2_score(y_test, y_pred)
         print(f'The models r2 score is {r2_result}')
@@ -282,6 +284,11 @@ def test_model(
         print(f'The models root mean squared error is {rmse_result}')
         mae_result = mean_absolute_error(y_test, y_pred)
         print(f'The models mean absolute error is {mae_result}')
+        return (
+            r2_result,
+            rmse_result,
+            mae_result,
+        )
 
 def grabArguments():
     if len(sys.argv) < 5:
