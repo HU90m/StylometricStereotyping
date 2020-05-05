@@ -1,12 +1,14 @@
+#!/bin/python3
 #---------------------------------------------------------------------------
 # Settings
 #---------------------------------------------------------------------------
 #
 IS_PAN13 = False
+IS_GENDER = True
 BATCH_SIZE = 10000
 MULTIPROCESSING = False
 
-MAKE_LOWERCASE = False
+MAKE_LOWERCASE = True
 SELECT_CHARACTERS = False
 KEEP_EXPRESSION = '[\w ,!?&:\-\'\"]+'
 
@@ -51,7 +53,17 @@ if IS_PAN13:
     }
     NUM_CATEGORIES = 6
     IGNORED_CATEGORIES = (4, 5)
-
+elif IS_GENDER:
+    CATEGORY_NUM = {
+        'male'   : 0,
+        'female' : 1,
+    }
+    CATEGORY_NAME = {
+        0 : 'male',
+        1 : 'female',
+    }
+    NUM_CATEGORIES = 2
+    IGNORED_CATEGORIES = ()
 else:
     CATEGORY_NUM = {
         'bot'   : 0,
@@ -221,6 +233,14 @@ def grabAuthors(truth_file, xml_path, csv_path, print_lock):
                 author_ids.append(author_info[0])
                 author_categories.append(author_info[2] + '_' + author_info[1])
                 author_filenames.append(author_filename)
+    elif IS_GENDER:
+        for author_truth in open(truth_file, 'r'):
+            author_truth = author_truth[:-1]
+            author_info = author_truth.split(':::')
+            if len(author_info) > 2 and author_info[1] == 'human':
+                author_ids.append(author_info[0])
+                author_categories.append(author_info[2])
+                author_filenames.append(author_info[0] + '.xml')
     else:
         for author_truth in open(truth_file, 'r'):
             author_truth = author_truth[:-1]

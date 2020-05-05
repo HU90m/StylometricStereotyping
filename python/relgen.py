@@ -3,12 +3,13 @@
 # Settings
 #---------------------------------------------------------------------------
 #
-OUTPUT = True
+OUTPUT = False
 FIND_DIVERGENCE = True
-CHECK_DISTRIBUTIONS = False
+CHECK_DISTRIBUTIONS = True
 
 IS_PAN13 = False
 SEED=42
+#SEED=665
 
 
 #---------------------------------------------------------------------------
@@ -71,8 +72,8 @@ if IS_PAN13:
     )
 else:
     CATEGORY_NAME = {
-        0 : 'bot',
-        1 : 'human',
+        0 : 'Malicious',
+        1 : 'Benign',
     }
     CATEGORY_COLOR = {
         0 : 'dimgrey',
@@ -112,16 +113,16 @@ else:
             1 : (5, 2),
         },
     }
-    PRINT_BETA = (
-        'vvvsimilar',
-        #'vvsimilar',
-        #'vsimilar',
-        #'similar',
-        'different',
-        'vdifferent',
-        #'vvdifferent',
-        #'vvvdifferent',
-    )
+    PRINT_BETA = {
+        'vvvsimilar'   : '$p_1$',
+        'vvsimilar'    : '$p_2$',
+        'vsimilar'     : '$p_3$',
+        'similar'      : '$p_4$',
+        'different'    : '$p_5$',
+        'vdifferent'   : '$p_6$',
+        'vvdifferent'  : '$p_7$',
+        'vvvdifferent' : '$p_8$',
+    }
 
 
 #---------------------------------------------------------------------------
@@ -197,37 +198,44 @@ if __name__ == '__main__':
     if CHECK_DISTRIBUTIONS:
         print('Preparing Histogram...')
 
-        fig, plots = plt.subplots(ncols=len(PRINT_BETA), nrows=1)
+        h_len = len(PRINT_BETA)//2
+        print(len(PRINT_BETA))
+        print(h_len)
+
+        fig, plots = plt.subplots(ncols=h_len, nrows=2)
 
         category_selections = [
             categories == cat_num for cat_num in range(len(CATEGORY_NAME))
         ]
         for idx, distribution_name in enumerate(PRINT_BETA):
-
             seperated_reliabilities = [
                 reliabilities[distribution_name][selection]
                 for selection in category_selections
             ]
 
             for cat_num in range(len(CATEGORY_NAME)):
-                n, bins, patches = plots[idx].hist(
+                col = idx % h_len
+                row = int(idx > h_len -1)
+                n, bins, patches = plots[row, col].hist(
                     x=seperated_reliabilities[cat_num],
-                    bins=100,
+                    bins=50,
                     alpha=0.6,
                     color=CATEGORY_COLOR[cat_num],
                     density=True,
+                    stacked=True,
                 )
-                plots[idx].plot(
+                plots[row, col].plot(
                     bins,
                     beta.pdf(bins, *CATEGORY_BETAS[distribution_name][cat_num]),
                     color=CATEGORY_COLOR[cat_num],
                     label=CATEGORY_NAME[cat_num],
                 )
-            plots[idx].set_title(distribution_name)
-            plots[idx].set(xlim=(0,1))
+            plots[row, col].set_title(PRINT_BETA[distribution_name])
+            plots[row, col].set(xlim=(0,1))
 
-        plots[len(plots)-1].legend()
+        plots[1, h_len -1].legend()
         print('Displaying Histogram...')
+        plt.tight_layout()
         plt.show()
 
     print('All Done.')

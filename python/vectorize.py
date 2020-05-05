@@ -1,3 +1,4 @@
+#!/bin/python3
 #---------------------------------------------------------------------------
 # Imports
 #---------------------------------------------------------------------------
@@ -34,6 +35,7 @@ def vectorizeText(texts):
         analyzer='word',
         ngram_range=(1, 3),
         min_df=0.01,# ignore terms in only 1% of documents
+        max_df=1.0,# ignore terms in 100% of documents
         use_idf=True,
         sublinear_tf=True,
     )
@@ -42,6 +44,7 @@ def vectorizeText(texts):
         analyzer='char',
         ngram_range=(3, 5),
         min_df=0.01,# ignore terms in only 1% of documents
+        max_df=1.0,# ignore terms in 100% of documents
         use_idf=True,
         sublinear_tf=True,
     )

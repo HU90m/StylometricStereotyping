@@ -1,11 +1,13 @@
+#!/bin/python3.8
 #---------------------------------------------------------------------------
 # Settings
 #---------------------------------------------------------------------------
 #
-IMPORT_REDUCER = True
-NUM_DIMENSIONS = 300
+IMPORT_REDUCER = False
+LSA_NUM_DIMENSIONS = 300
+LDA_NUM_DIMENSIONS = None
 TSNE_NUM_DIMENSIONS = 3
-LDA_FIT_PERCENTAGE = 0.60
+LDA_FIT_PERCENTAGE = 0.25
 
 
 #---------------------------------------------------------------------------
@@ -29,11 +31,19 @@ from sklearn.manifold import TSNE
 #---------------------------------------------------------------------------
 #
 def putInBin(reliability):
-    if reliability < 0.25:
+    if reliability < 0.125:
         return 0
-    elif reliability < 0.5:
+    elif reliability < 0.25:
         return 1
+    elif reliability < 0.375:
+        return 2
+    elif reliability < 0.5:
+        return 3
+    elif reliability < 0.625:
+        return 4
     elif reliability < 0.75:
+        return 2
+    elif reliability < 0.875:
         return 2
     else:
         return 3
@@ -41,7 +51,7 @@ def putInBin(reliability):
 def reduceDimensionality(reduction_technique, vectors, reliability_bins):
     if reduction_technique == 'lsa':
         # Truncated SVD a.k.a. Latent Semantic Analysis
-        reducer = TruncatedSVD(n_components=NUM_DIMENSIONS)
+        reducer = TruncatedSVD(n_components=LSA_NUM_DIMENSIONS)
         vectors_reduced = reducer.fit_transform(vectors)
 
     elif reduction_technique == 'tsne':
@@ -54,7 +64,7 @@ def reduceDimensionality(reduction_technique, vectors, reliability_bins):
     elif reduction_technique == 'lda':
         fit_index_max = int(vectors.shape[0] * LDA_FIT_PERCENTAGE)
         print(f'fitting up to index {fit_index_max} out of {vectors.shape[0]}')
-        reducer = LinearDiscriminantAnalysis(n_components=NUM_DIMENSIONS)
+        reducer = LinearDiscriminantAnalysis(n_components=LDA_NUM_DIMENSIONS)
         reducer.fit(
             vectors.toarray()[:fit_index_max],
             reliability_bins[:fit_index_max],

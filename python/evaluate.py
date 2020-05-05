@@ -24,6 +24,7 @@ OPERATIONS = (
     'test',
 )
 MODELS = (
+    'linreg',
     'ridge',
     'lasso',
     'sgd',
@@ -48,7 +49,7 @@ import catboost as cat
 
 from scipy import sparse
 
-from sklearn.linear_model import Lasso, Ridge, SGDRegressor
+from sklearn.linear_model import LinearRegression, Lasso, Ridge, SGDRegressor
 from sklearn.svm import LinearSVR, LinearSVC
 from sklearn.svm import SVR, SVC
 
@@ -78,7 +79,7 @@ def param_opt_model(
     vectors,
     targets,
     is_classification=False,
-    calculate_training_scores=True,
+    calculate_training_scores=False,
     grid_search=True,
     seed=42,
     iterations=20,
@@ -120,6 +121,7 @@ def param_opt_model(
                 model,
                 params,
                 scoring='r2',
+                #scoring='neg_mean_squared_error',
                 return_train_score=calculate_training_scores,
                 cv=KFold(
                     n_splits=splits,
@@ -156,7 +158,7 @@ def cross_validate_model(
     X_train,
     y_train,
     is_classification=False,
-    calculate_training_scores=True,
+    calculate_training_scores=False,
     jobs=-1,
     splits=10,
     seed=42,
@@ -225,6 +227,7 @@ def cross_validate_model(
         average_metric = sum(results[key])/len(results[key])
         print(f'The average {name}:')
         print(f'\t{average_metric}\n')
+    return average_metric
 
 def cross_validate_cat_model(
     model_parameters,
@@ -317,12 +320,12 @@ def grabArguments():
 
     if not path.isfile(sys.argv[3]):
         print('The following is not a file:')
-        print(f'\t{sys.argv[2]}')
+        print(f'\t{sys.argv[3]}')
         sys.exit(0)
 
     if not path.isfile(sys.argv[4]):
         print('The following is not a file:')
-        print(f'\t{sys.argv[3]}')
+        print(f'\t{sys.argv[4]}')
         sys.exit(0)
 
     operation = sys.argv[1]
@@ -437,23 +440,37 @@ if __name__ == '__main__':
             test_targets = [PAN13MaleFemaleSplit(item) for item in test_targets]
 
 
+    if model == 'linreg':
+        if OP_CV:
+            cross_validate_model(LinearRegression(), vectors, targets)
+        elif OP_TEST:
+            test_model(LinearRegression(), vectors, targets, test_vectors, test_targets)
+
     if model == 'ridge':
+        params = {
+            'alpha': 2.35,
+        }
         if OP_CV:
             cross_validate_model(Ridge(), vectors, targets)
         elif OP_TEST:
-            test_model(Ridge(), vectors, targets, test_vectors, test_targets)
+            test_model(Ridge(**params), vectors, targets, test_vectors, test_targets)
         elif OP_PARAM:
-            params = {
-                'tol': loguniform(1e-6, 1e-2),
-                #'tol': (1e-6, 1e-5, 1e-4, 1e-3),
+            param_space = {
+                #'tol': loguniform(1e-6, 1e-2),
+                'alpha': [num/100 for num in range(0, 500, 5)],
             }
-            param_opt_model(Ridge(), params, vectors, targets, grid_search=False, iterations=100, seed=None)
+            param_opt_model(Ridge(), param_space, vectors, targets, seed=None)
 
     elif model == 'lasso':
         if OP_CV:
             cross_validate_model(Lasso(), vectors, targets)
         elif OP_TEST:
             test_model(Lasso(), vectors, targets, test_vectors, test_targets)
+        elif OP_PARAM:
+            params = {
+                'alpha': [num/1000 for num in range(0, 1000, 100)],
+            }
+            param_opt_model(Lasso(), params, vectors, targets, seed=None)
 
     elif model == 'sgd':
         if OP_CV:
@@ -462,16 +479,22 @@ if __name__ == '__main__':
             test_model(SGDRegressor(), vectors, targets, test_vectors, test_targets)
 
     elif model == 'svr':
+        params = {
+                'C': 0.08,
+                'epsilon': 0.12,
+                'kernel': 'rbf',
+        }
         if OP_CV:
-            cross_validate_model(SVR(), vectors, targets)
+            cross_validate_model(SVR(**params), vectors, targets)
         elif OP_TEST:
             test_model(SVR(), vectors, targets, test_vectors, test_targets)
         elif OP_PARAM:
-            params = [
-                {'C': [1, 10, 100, 1000], 'kernel': ['linear']},
-                {'C': [1, 10, 100, 1000], 'gamma': [0.001, 0.0001], 'kernel': ['rbf']},
-            ]
-            param_opt_model(SVR(), params, vectors, targets)
+            param_space = {
+                    'C': [num/100 for num in range(2, 10, 2)],
+                    'epsilon': [num/100 for num in range(2, 20, 2)],
+                    'kernel': ('poly', 'rbf'),
+            }
+            param_opt_model(SVR(**params), param_space, vectors, targets, splits=3)
 
     elif model == 'lin_svr':
         if OP_CV:
@@ -483,6 +506,22 @@ if __name__ == '__main__':
                 targets,
                 test_vectors,
                 test_targets,
+            )
+        elif OP_PARAM:
+            params = [
+                {
+                    'C': [num/100 for num in range(2, 10, 2)],
+                    'epsilon': [num/100 for num in range(2, 20, 2)],
+                    #'loss': ('epsilon_insensitive', 'squared_epsilon_insensitive'),
+                },
+            ]
+            param_opt_model(
+                LinearSVR(),
+                params,
+                vectors,
+                targets,
+                splits=3,
+                seed=None,
             )
 
     elif model == 'svc':
@@ -511,7 +550,8 @@ if __name__ == '__main__':
                 vectors,
                 targets,
                 is_classification=True,
-                splits=4,
+                splits=10,
+                seed=None,
             )
         elif OP_TEST:
             test_model(
@@ -522,36 +562,72 @@ if __name__ == '__main__':
                 test_targets,
                 is_classification=True,
             )
+        elif OP_PARAM:
+            params = [
+                {
+                    'C': [num/100 for num in range(2, 10, 2)],
+                },
+            ]
+            param_opt_model(
+                LinearSVC(),
+                params,
+                vectors,
+                targets,
+                splits=10,
+                seed=None,
+            )
 
     elif model == 'catboost':
-        parameters = {
-            "iterations": 100,
-            "depth": 6,
-            "verbose": False,
-            "task_type": "GPU",
+        params = {
+            'verbose': False,
+            'task_type': 'GPU',
+            'od_type': 'Iter',
+            'od_wait': 25,
+            'iterations': 1000,
+            'depth': 6,
+            'l2_leaf_reg': 3,
+            'learning_rate': 0.03,
+            'bagging_temperature': 1,
         }
         if OP_CV:
             cross_validate_model(
-                cat.CatBoostRegressor(**parameters),
+                cat.CatBoostRegressor(**params),
                 vectors,
                 targets,
-                splits=2,
+                splits=3,
                 jobs=None,
             )
         elif OP_TEST:
             test_model(
-                cat.CatBoostRegressor(**parameters),
+                cat.CatBoostRegressor(**params),
                 vectors,
                 targets,
                 test_vectors,
                 test_targets,
                 is_classification=False,
             )
+        elif OP_PARAM:
+            param_space = {
+                'iterations' : (1000, 2000),
+                #'l2_leaf_reg': [1, 3, 5, 7, 9],
+                #'learning_rate': [0.03, 0.1, 0.3, 0.9],
+                #'depth': tuple(range(4, 12, 3)),
+                #'bagging_temperature': [0, 1, 10],
+            }
+            param_opt_model(
+                cat.CatBoostRegressor(**params),
+                param_space,
+                vectors,
+                targets,
+                splits=3,
+                seed=None,
+                jobs=None,
+            )
 
     elif model == 'catboost_c':
         parameters = {
-            "iterations": 2,
-            #"depth": 2,
+            "iterations": 500,
+            "depth": 6,
             "verbose": False,
             "task_type": "GPU",
         }
@@ -560,7 +636,8 @@ if __name__ == '__main__':
                 cat.CatBoostClassifier(**parameters),
                 vectors,
                 targets,
-                splits=2,
+                is_classification=True,
+                splits=5,
                 jobs=None,
             )
         elif OP_TEST:
