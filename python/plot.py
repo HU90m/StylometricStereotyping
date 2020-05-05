@@ -1,5 +1,28 @@
 #!/bin/python3
 #---------------------------------------------------------------------------
+# Settings
+#---------------------------------------------------------------------------
+#
+IMPORT_RESULTS = False
+SAVE_RESULTS = True
+PLOT_RESULTS = True
+SELECTED_MODELS = (
+    #'Linear Regression',
+    #'Ridge',
+    #'Lasso',
+    #'RidgeCV',
+    #'SVR',
+    #'Linear SVR',
+    'CatBoost',
+)
+TESTS = (
+    'cv',
+    'test',
+)
+CV_YTICKS = [num/100 - 0.05 for num in range(0, 95, 5)]
+TEST_YTICKS = [num/100 for num in range(0, 70, 5)]
+
+#---------------------------------------------------------------------------
 # Imports
 #---------------------------------------------------------------------------
 #
@@ -22,54 +45,81 @@ from sklearn.svm import SVR, SVC
 
 
 #---------------------------------------------------------------------------
+# Constants
+#---------------------------------------------------------------------------
+#
+cat_params = {
+    'verbose': False,
+    'task_type': 'GPU',
+    'od_type': 'Iter',
+    'od_wait': 25,
+    'iterations': 1000,
+    'depth': 6,
+    'l2_leaf_reg': 3,
+    'learning_rate': 0.03,
+    'bagging_temperature': 1,
+}
+models = {
+    'Linear Regression' : (
+        LinearRegression(),
+        'linreg',
+        'red',
+    ),
+    'Ridge' : (
+        Ridge(),
+        'ridge',
+        'green',
+    ),
+    'Lasso' : (
+        Lasso(),
+        'lasso',
+        'blue',
+    ),
+    'RidgeCV' : (
+        RidgeCV(alphas=[num/100 for num in range(5, 500, 5)]),
+        'ridgecv',
+        'yellow',
+    ),
+    'SVR' : (
+        SVR(),
+        'svr',
+        'cyan',
+    ),
+    'Linear SVR' : (
+        LinearSVR(),
+        'lin_svr',
+        'magenta',
+    ),
+    'CatBoost' : (
+        cat.CatBoostRegressor(**cat_params),
+        'catboost',
+        'grey',
+    ),
+}
+results_prefix = 'results_'
+reliabilities_prefix = 'reliabilities_'
+test_reliabilities_prefix = 'test-reliabilities_'
+distributions = (
+    'vvvsimilar',
+    'vvsimilar',
+    'vsimilar',
+    'similar',
+    'different',
+    'vdifferent',
+    'vvdifferent',
+    'vvvdifferent',
+)
+vectors_file = 'reduced_lsa.npy'
+test_vectors_file = 'test-reduced_lsa.npy'
+
+
+#---------------------------------------------------------------------------
 # Main
 #---------------------------------------------------------------------------
 #
 if __name__ == '__main__':
-    OP_CV = True
-    cat_params = {
-        "iterations": 100,
-        "depth": 6,
-        "verbose": False,
-        "task_type": "GPU",
-    }
-    models = {
-        'Linear Regression' : LinearRegression(),
-        #'Lasso' : Lasso(),
-        'Ridge' : Ridge(),
-        'RidgeOther' : RidgeCV(alphas=[num/100 for num in range(5, 500, 5)]),
-        #'SVR' : SVR(),
-        #'SGD' : SGDRegressor(),
-        #'Linear SVR' : LinearSVR(),
-        #'CatBoost' : cat.CatBoostRegressor(**cat_params),
-    }
-    colours = {
-        'Linear Regression' : 'red',
-        'Lasso' : 'blue',
-        'Ridge' : 'blue',
-        'RidgeOther' : 'green',
-        'SVR' : 'yellow',
-        'SGD' : 'cyan',
-        'Linear SVR' : 'magenta',
-        'CatBoost' : 'cyan',
-    }
-    reliabilities_prefix = 'reliabilities_'
-    test_reliabilities_prefix = 'test-reliabilities_'
-
-    distributions = (
-        'vvvsimilar',
-        'vvsimilar',
-        'vsimilar',
-        'similar',
-        'different',
-        'vdifferent',
-        'vvdifferent',
-        'vvvdifferent',
-    )
-
-    vectors = np.load('reduced_lsa.npy', allow_pickle=True)
-    test_vectors = np.load('test-reduced_lsa.npy', allow_pickle=True)
-
+    vectors = np.load(vectors_file, allow_pickle=True)
+    test_vectors = np.load(test_vectors_file, allow_pickle=True)
 
     KLs = []
     for idx, distribution in enumerate(distributions):
@@ -93,46 +143,97 @@ if __name__ == '__main__':
         ))
 
     results = {}
-    for model_name in models:
-        results[model_name] = []
-        for idx, distribution in enumerate(distributions):
-            if OP_CV:
-                results[model_name].append(evaluate.cross_validate_model(
-                    models[model_name],
-                    vectors,
-                    targets[idx],
-                    is_classification=False,
-                    splits=2,
-                ))
+    if 'cv' in TESTS:
+        results['cv'] = {}
+        if IMPORT_RESULTS:
+            for model_name in SELECTED_MODELS:
+                results_file = \
+                    results_prefix + 'cv_' + models[model_name][1] + '.npy'
+                results['cv'][model_name] = np.load(
+                    results_file,
+                    allow_pickle=True,
+                )
+        else:
+            for model_name in SELECTED_MODELS:
+                results['cv'][model_name] = []
+                jobs = None if model_name == 'catboost' else -1
+                for idx, distribution in enumerate(distributions):
+                    results['cv'][model_name].append(
+                        evaluate.cross_validate_model(
+                            models[model_name][0],
+                            vectors,
+                            targets[idx],
+                            is_classification=False,
+                            splits=5,
+                            jobs=jobs,
+                        )
+                    )
+
+                if SAVE_RESULTS:
+                    results_file = \
+                        results_prefix + 'cv_' + models[model_name][1] + '.npy'
+                    np.save(results_file, results['cv'][model_name])
+
+    if 'test' in TESTS:
+        results['test'] = {}
+        if IMPORT_RESULTS:
+            for model_name in SELECTED_MODELS:
+                results_file = \
+                    results_prefix + 'test_' + models[model_name][1] + '.npy'
+                results['test'][model_name] = np.load(
+                    results_file,
+                    allow_pickle=True,
+                )
+        else:
+            for model_name in SELECTED_MODELS:
+                results['test'][model_name] = []
+                for idx, distribution in enumerate(distributions):
+                    results['test'][model_name].append(evaluate.test_model(
+                        models[model_name][0],
+                        vectors,
+                        targets[idx],
+                        test_vectors,
+                        test_targets[idx],
+                        is_classification=False,
+                    )[0])
+
+                if SAVE_RESULTS:
+                    results_file = \
+                        results_prefix +'test_'+ models[model_name][1] + '.npy'
+                    np.save(results_file, results['test'][model_name])
+
+
+    if PLOT_RESULTS:
+        fig, plots = plt.subplots(ncols=len(TESTS), nrows=1)
+
+        def plot_test(plot, test):
+            for model_name in SELECTED_MODELS:
+                plot.plot(KLs,
+                    results[test][model_name],
+                    label=model_name,
+                    color=models[model_name][2],
+                    linewidth=1,
+                    linestyle='-',
+                )
+            plot.set_xlabel('$D_{KL}$')
+            plot.set_xticks(range(10))
+            plot.set_ylabel('$R^2$')
+            if test == 'cv':
+                plot.set_title('5 Fold Cross Validation')
+                plot.set_yticks(CV_YTICKS)
             else:
-                results[model_name].append(evaluate.test_model(
-                    models[model_name],
-                    vectors,
-                    targets[idx],
-                    test_vectors,
-                    test_targets[idx],
-                    is_classification=False,
-                )[0])
+                plot.set_title('Test Set Performance')
+                plot.set_yticks(TEST_YTICKS)
+            plot.grid('both')
 
+        if len(TESTS) > 1:
+            for idx, test in enumerate(TESTS):
+                plot_test(plots[idx], test)
+        else:
+            plot_test(plots, TESTS[0])
 
-    for model_name in models:
-        plt.plot(KLs,
-            results[model_name],
-            label=model_name,
-            color=colours[model_name],
-            linewidth=1,
-            linestyle='-',
-        )
-
-    plt.xlabel('$D_{KL}$')
-    plt.xticks(range(10))
-    plt.ylabel('$R^2$')
-    if OP_CV:
-        plt.yticks([num/100 - 0.05 for num in range(0, 95, 5)])
-    else:
-        plt.yticks([num/100 for num in range(0, 70, 5)])
-    plt.grid('both')
-    plt.legend()
-    plt.show()
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
     print('All Done.')
