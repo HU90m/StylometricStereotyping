@@ -70,48 +70,54 @@ if __name__ == '__main__':
     vectors = np.load('reduced_lsa.npy', allow_pickle=True)
     test_vectors = np.load('test-reduced_lsa.npy', allow_pickle=True)
 
-    KLs = []
-    results = []
-    for idx, distribution in enumerate(distributions):
-        targets = np.load(
-            reliabilities_prefix + distribution + '.npy',
-            allow_pickle=True,
-        )
-        test_targets = np.load(
-            test_reliabilities_prefix + distribution + '.npy',
-            allow_pickle=True,
-        )
 
+    KLs = []
+    for idx, distribution in enumerate(distributions):
         KLs.append(relgen.KLDiv(
                 relgen.CATEGORY_BETAS[distribution][0][0],
                 relgen.CATEGORY_BETAS[distribution][0][1],
                 relgen.CATEGORY_BETAS[distribution][1][0],
                 relgen.CATEGORY_BETAS[distribution][1][1],
         ))
-        results.append({})
-        for model_name in models:
+
+    targets = []
+    test_targets = []
+    for idx, distribution in enumerate(distributions):
+        targets.append(np.load(
+            reliabilities_prefix + distribution + '.npy',
+            allow_pickle=True,
+        ))
+        test_targets.append(np.load(
+            test_reliabilities_prefix + distribution + '.npy',
+            allow_pickle=True,
+        ))
+
+    results = {}
+    for model_name in models:
+        results[model_name] = []
+        for idx, distribution in enumerate(distributions):
             if OP_CV:
-                results[idx][model_name] = evaluate.cross_validate_model(
+                results[model_name].append(evaluate.cross_validate_model(
                     models[model_name],
                     vectors,
-                    targets,
+                    targets[idx],
                     is_classification=False,
                     splits=2,
-                )
+                ))
             else:
-                results[idx][model_name] = evaluate.test_model(
+                results[model_name].append(evaluate.test_model(
                     models[model_name],
                     vectors,
-                    targets,
+                    targets[idx],
                     test_vectors,
-                    test_targets,
+                    test_targets[idx],
                     is_classification=False,
-                )[0]
+                )[0])
 
 
     for model_name in models:
         plt.plot(KLs,
-            [result[model_name] for result in results],
+            results[model_name],
             label=model_name,
             color=colours[model_name],
             linewidth=1,
