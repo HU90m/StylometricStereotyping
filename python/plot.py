@@ -5,7 +5,7 @@
 #
 IMPORT_RESULTS = False
 SAVE_RESULTS = True
-PLOT_RESULTS = True
+PLOT_RESULTS = False
 SELECTED_MODELS = (
     #'Linear Regression',
     #'Ridge',
@@ -30,11 +30,10 @@ import evaluate
 import relgen
 
 import sys
-from os import path
+import os
 
 import numpy as np
 import catboost as cat
-from matplotlib import pyplot as plt
 
 from scipy import sparse
 
@@ -43,6 +42,11 @@ from sklearn.linear_model import RidgeCV
 from sklearn.svm import LinearSVR, LinearSVC
 from sklearn.svm import SVR, SVC
 
+if PLOT_RESULTS:
+    from matplotlib import pyplot as plt
+    from matplotlib import rc
+    rc('font',**{'family':'DejaVu Sans','serif':['Times']})
+    rc('text', usetex=True)
 
 #---------------------------------------------------------------------------
 # Constants
@@ -63,12 +67,27 @@ models = {
     'Linear Regression' : (
         LinearRegression(),
         'linreg',
-        'red',
+        'royalblue',
     ),
     'Ridge' : (
         Ridge(),
         'ridge',
-        'green',
+        'limegreen',
+    ),
+    'SVR' : (
+        SVR(),
+        'svr',
+        'darkorange',
+    ),
+    'Linear SVR' : (
+        LinearSVR(),
+        'lin_svr',
+        'purple',
+    ),
+    'CatBoost' : (
+        cat.CatBoostRegressor(**cat_params),
+        'catboost',
+        'grey',
     ),
     'Lasso' : (
         Lasso(),
@@ -79,21 +98,6 @@ models = {
         RidgeCV(alphas=[num/100 for num in range(5, 500, 5)]),
         'ridgecv',
         'yellow',
-    ),
-    'SVR' : (
-        SVR(),
-        'svr',
-        'cyan',
-    ),
-    'Linear SVR' : (
-        LinearSVR(),
-        'lin_svr',
-        'magenta',
-    ),
-    'CatBoost' : (
-        cat.CatBoostRegressor(**cat_params),
-        'catboost',
-        'grey',
     ),
 }
 results_prefix = 'results_'
@@ -118,8 +122,16 @@ test_vectors_file = 'test-reduced_lsa.npy'
 #---------------------------------------------------------------------------
 #
 if __name__ == '__main__':
+    if len(sys.argv) > 1:
+        if not os.path.isdir(sys.argv[1]):
+            print(f'{sys.argv[1]} is not a directory')
+            sys.exit(0)
+        else:
+            os.chdir(sys.argv[1])
+
     vectors = np.load(vectors_file, allow_pickle=True)
     test_vectors = np.load(test_vectors_file, allow_pickle=True)
+
 
     KLs = []
     for idx, distribution in enumerate(distributions):
@@ -155,19 +167,19 @@ if __name__ == '__main__':
                 )
         else:
             for model_name in SELECTED_MODELS:
-                results['cv'][model_name] = []
-                jobs = None if model_name == 'catboost' else -1
+                results['cv'][model_name] = ([], [])
+                jobs = None if model_name == 'CatBoost' else -1
                 for idx, distribution in enumerate(distributions):
-                    results['cv'][model_name].append(
-                        evaluate.cross_validate_model(
-                            models[model_name][0],
-                            vectors,
-                            targets[idx],
-                            is_classification=False,
-                            splits=5,
-                            jobs=jobs,
-                        )
+                    result = evaluate.cross_validate_model(
+                        models[model_name][0],
+                        vectors,
+                        targets[idx],
+                        is_classification=False,
+                        splits=5,
+                        jobs=jobs,
                     )
+                    results['cv'][model_name][0].append(result[0])
+                    results['cv'][model_name][1].append(result[1])
 
                 if SAVE_RESULTS:
                     results_file = \
@@ -186,16 +198,18 @@ if __name__ == '__main__':
                 )
         else:
             for model_name in SELECTED_MODELS:
-                results['test'][model_name] = []
+                results['test'][model_name] = ([], [])
                 for idx, distribution in enumerate(distributions):
-                    results['test'][model_name].append(evaluate.test_model(
+                    result = evaluate.test_model(
                         models[model_name][0],
                         vectors,
                         targets[idx],
                         test_vectors,
                         test_targets[idx],
                         is_classification=False,
-                    )[0])
+                    )
+                    results['test'][model_name][0].append(result[0])
+                    results['test'][model_name][1].append(result[1])
 
                 if SAVE_RESULTS:
                     results_file = \
@@ -204,35 +218,54 @@ if __name__ == '__main__':
 
 
     if PLOT_RESULTS:
-        fig, plots = plt.subplots(ncols=len(TESTS), nrows=1)
-
-        def plot_test(plot, test):
+        def plot_test(plot_r2, plot_rmse, test):
             for model_name in SELECTED_MODELS:
-                plot.plot(KLs,
-                    results[test][model_name],
+                plot_r2.plot(KLs,
+                    results[test][model_name][0],
                     label=model_name,
                     color=models[model_name][2],
                     linewidth=1,
                     linestyle='-',
+                    marker='|',
+                    markersize=3,
                 )
-            plot.set_xlabel('$D_{KL}$')
-            plot.set_xticks(range(10))
-            plot.set_ylabel('$R^2$')
+                plot_rmse.plot(KLs,
+                    results[test][model_name][1],
+                    label=model_name,
+                    color=models[model_name][2],
+                    linewidth=1,
+                    linestyle='-',
+                    marker='|',
+                    markersize=3,
+                )
+            plot_rmse.set_ylabel('$RMSE$')
+            plot_r2.set_ylabel('$R^2$')
+            plot_r2.set_xticks(range(10))
+            plot_rmse.set_xticks(range(10))
             if test == 'cv':
-                plot.set_title('5 Fold Cross Validation')
-                plot.set_yticks(CV_YTICKS)
+                plot_r2.set_title('5 Fold Cross Validation')
             else:
-                plot.set_title('Test Set Performance')
-                plot.set_yticks(TEST_YTICKS)
-            plot.grid('both')
+                plot_r2.set_title('Test Set Performance')
+            plot_rmse.set_xlabel('$D_{KL}$')
+            #plot_r2.set_yticks(CV_YTICKS)
+            plot_r2.grid('both')
+            plot_rmse.grid('both')
+
+        fig = plt.figure()
+        ax11 = plt.subplot(221)
+        ax21 = plt.subplot(223, sharex=ax11)
 
         if len(TESTS) > 1:
-            for idx, test in enumerate(TESTS):
-                plot_test(plots[idx], test)
-        else:
-            plot_test(plots, TESTS[0])
+            ax12 = plt.subplot(222, sharey=ax11)
+            ax22 = plt.subplot(224, sharey=ax21, sharex=ax12)
 
-        plt.legend()
+            plot_test(ax11, ax21, 'test')
+            plot_test(ax12, ax22, 'cv')
+
+        else:
+            plot_test(ax11, ax12, TESTS[0])
+
+        plt.legend(fontsize='x-small')
         plt.tight_layout()
         plt.show()
 

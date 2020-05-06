@@ -227,7 +227,14 @@ def cross_validate_model(
         average_metric = sum(results[key])/len(results[key])
         print(f'The average {name}:')
         print(f'\t{average_metric}\n')
-    return average_metric
+
+    if is_classification:
+        return average_metric
+    else:
+        return (
+            sum(results[display[2][1]])/len(results[display[2][1]]),# R2
+            -sum(results[display[1][1]])/len(results[display[1][1]]),# RMSE
+        )
 
 def cross_validate_cat_model(
     model_parameters,
@@ -290,7 +297,6 @@ def test_model(
         return (
             r2_result,
             rmse_result,
-            mae_result,
         )
 
 def grabArguments():
