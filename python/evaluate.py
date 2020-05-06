@@ -486,9 +486,9 @@ if __name__ == '__main__':
 
     elif model == 'svr':
         params = {
-                'C': 0.08,
-                'epsilon': 0.12,
-                'kernel': 'rbf',
+            'C': 0.08,
+            'epsilon': 0.12,
+            'kernel': 'rbf',
         }
         if OP_CV:
             cross_validate_model(SVR(**params), vectors, targets)

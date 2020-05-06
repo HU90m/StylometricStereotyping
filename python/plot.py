@@ -3,17 +3,19 @@
 # Settings
 #---------------------------------------------------------------------------
 #
-IMPORT_RESULTS = False
+IMPORT_RESULTS = True
 SAVE_RESULTS = True
-PLOT_RESULTS = False
+PLOT_RESULTS = True
 SELECTED_MODELS = (
-    #'Linear Regression',
-    #'Ridge',
+    'Linear Regression',
+    'Ridge',
+    'SVR RBF',
+    'SVR Linear',
+    'CatBoost',
+    #'RidgeTmp',
+    #'SVRTmp',
     #'Lasso',
     #'RidgeCV',
-    #'SVR',
-    #'Linear SVR',
-    'CatBoost',
 )
 TESTS = (
     'cv',
@@ -45,7 +47,7 @@ from sklearn.svm import SVR, SVC
 if PLOT_RESULTS:
     from matplotlib import pyplot as plt
     from matplotlib import rc
-    rc('font',**{'family':'DejaVu Sans','serif':['Times']})
+    rc('font', **{'family':'DejaVu Sans','serif':['Times'], 'size':8})
     rc('text', usetex=True)
 
 #---------------------------------------------------------------------------
@@ -63,6 +65,14 @@ cat_params = {
     'learning_rate': 0.03,
     'bagging_temperature': 1,
 }
+ridge_params = {
+    'alpha': 2.35,
+}
+svr_params = {
+    'C': 0.08,
+    'epsilon': 0.12,
+    'kernel': 'rbf',
+}
 models = {
     'Linear Regression' : (
         LinearRegression(),
@@ -74,12 +84,12 @@ models = {
         'ridge',
         'limegreen',
     ),
-    'SVR' : (
+    'SVR RBF' : (
         SVR(),
         'svr',
         'darkorange',
     ),
-    'Linear SVR' : (
+    'SVR Linear' : (
         LinearSVR(),
         'lin_svr',
         'purple',
@@ -98,6 +108,16 @@ models = {
         RidgeCV(alphas=[num/100 for num in range(5, 500, 5)]),
         'ridgecv',
         'yellow',
+    ),
+    'RidgeTmp' : (
+        Ridge(**ridge_params),
+        'ridge_tmp',
+        'green',
+    ),
+    'SVRTmp' : (
+        SVR(**svr_params),
+        'svr_tmp',
+        'orange',
     ),
 }
 results_prefix = 'results_'
@@ -265,7 +285,7 @@ if __name__ == '__main__':
         else:
             plot_test(ax11, ax12, TESTS[0])
 
-        plt.legend(fontsize='x-small')
+        plt.legend(fontsize='small')
         plt.tight_layout()
         plt.show()
 

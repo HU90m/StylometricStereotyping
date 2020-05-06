@@ -26,6 +26,9 @@ if FIND_DIVERGENCE:
 if CHECK_DISTRIBUTIONS:
     from scipy.stats import beta
     from matplotlib import pyplot as plt
+    from matplotlib import rc
+    rc('font', **{'family':'DejaVu Sans','serif':['Times'], 'size':8})
+    rc('text', usetex=True)
 
 
 #---------------------------------------------------------------------------
