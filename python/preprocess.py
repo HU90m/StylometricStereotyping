@@ -5,6 +5,8 @@
 #
 IS_PAN13 = False
 IS_GENDER = True
+IS_TRUNCATED = False
+IS_TRUNCATED_VALUE = 1320
 BATCH_SIZE = 10000
 MULTIPROCESSING = False
 
@@ -241,6 +243,22 @@ def grabAuthors(truth_file, xml_path, csv_path, print_lock):
                 author_ids.append(author_info[0])
                 author_categories.append(author_info[2])
                 author_filenames.append(author_info[0] + '.xml')
+    elif IS_TRUNCATED:
+        b_cnt, h_cnt = 0, 0
+        for author_truth in open(truth_file, 'r'):
+            author_truth = author_truth[:-1]
+            author_info = author_truth.split(':::')
+            if len(author_info) > 2:
+                if author_info[1] == 'human' and h_cnt < IS_TRUNCATED_VALUE:
+                    h_cnt = h_cnt + 1
+                    author_ids.append(author_info[0])
+                    author_categories.append(author_info[1])
+                    author_filenames.append(author_info[0] + '.xml')
+                elif author_info[1] == 'bot' and b_cnt < IS_TRUNCATED_VALUE:
+                    b_cnt = b_cnt + 1
+                    author_ids.append(author_info[0])
+                    author_categories.append(author_info[1])
+                    author_filenames.append(author_info[0] + '.xml')
     else:
         for author_truth in open(truth_file, 'r'):
             author_truth = author_truth[:-1]
