@@ -12,7 +12,7 @@ SELECTED_MODELS = (
     'Ridge',
     'SVR RBF',
     'SVR Linear',
-    'CatBoost',
+    #'CatBoost',
     #'RidgeTmp',
     #'SVRTmp',
     #'Lasso',
@@ -48,6 +48,9 @@ from sklearn.svm import SVR, SVC
 if PLOT_RESULTS:
     from matplotlib import pyplot as plt
     from matplotlib import rc
+    import matplotlib.ticker as plticker
+    r2_tick_locator = plticker.MultipleLocator(base=0.1)
+    rmse_tick_locator = plticker.MultipleLocator(base=0.01)
     rc('font', **{'family':'DejaVu Sans','serif':['Times'], 'size':8})
     rc('text', usetex=True)
 
@@ -284,11 +287,13 @@ if __name__ == '__main__':
             plot_r2.set_xticks(range(10))
             plot_rmse.set_xticks(range(10))
             if test == 'cv':
-                plot_r2.set_title('5 Fold Cross Validation')
+                plot_r2.set_title('5-Fold Cross Validation')
             else:
                 plot_r2.set_title('Test Set Performance')
             plot_rmse.set_xlabel('$D_{KL}$')
             #plot_r2.set_yticks(CV_YTICKS)
+            plot_r2.yaxis.set_major_locator(r2_tick_locator)
+            plot_rmse.yaxis.set_major_locator(rmse_tick_locator)
             plot_r2.grid('both')
             plot_rmse.grid('both')
 
@@ -306,7 +311,7 @@ if __name__ == '__main__':
         else:
             plot_test(ax11, ax12, TESTS[0])
 
-        plt.legend(fontsize='small')
+        plt.legend()#fontsize='small')
         plt.tight_layout()
         plt.show()
 
