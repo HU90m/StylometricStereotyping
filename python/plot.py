@@ -4,8 +4,9 @@
 #---------------------------------------------------------------------------
 #
 IMPORT_RESULTS = True
-SAVE_RESULTS = True
 PLOT_RESULTS = True
+PRINT_RESULTS = True
+SAVE_RESULTS = True
 SELECTED_MODELS = (
     'Linear Regression',
     'Ridge',
@@ -235,6 +236,26 @@ if __name__ == '__main__':
                     results_file = \
                         results_prefix +'test_'+ models[model_name][1] + '.npy'
                     np.save(results_file, results['test'][model_name])
+
+    if PRINT_RESULTS:
+        for model_name in SELECTED_MODELS:
+            print(f'\nModel: {model_name}')
+            print('CV')
+            print(f'KLs\t\t\tR2\t\t\tRMSE')
+            for idx, name in enumerate(KLs):
+                print(
+                    f"{name}\t"
+                    f"{results['cv'][model_name][0][idx]}\t",
+                    f"{results['cv'][model_name][1][idx]}",
+                )
+            print('Test')
+            print(f'KLs\t\t\tR2\t\t\tRMSE')
+            for idx, name in enumerate(KLs):
+                print(
+                    f"{name}\t"
+                    f"{results['test'][model_name][0][idx]}\t",
+                    f"{results['test'][model_name][1][idx]}",
+                )
 
 
     if PLOT_RESULTS:
