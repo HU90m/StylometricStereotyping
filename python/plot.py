@@ -3,17 +3,18 @@
 # Settings
 #---------------------------------------------------------------------------
 #
-IMPORT_RESULTS = True
 PLOT_RESULTS = True
 PRINT_RESULTS = True
 SAVE_RESULTS = True
-SELECTED_MODELS = (
+IMPORT_MODELS = (
     'Linear Regression',
-    'Ridge',
     'SVR RBF',
+    'SVR Poly',
+    'Ridge',
+    'CatBoost',
+)
+RUN_MODELS = (
     'SVR Linear',
-    #'CatBoost',
-    #'RidgeTmp',
     #'SVRTmp',
     #'Lasso',
     #'RidgeCV',
@@ -22,8 +23,7 @@ TESTS = (
     'cv',
     'test',
 )
-CV_YTICKS = [num/100 - 0.05 for num in range(0, 95, 5)]
-TEST_YTICKS = [num/100 for num in range(0, 70, 5)]
+SPLITS = 5
 
 #---------------------------------------------------------------------------
 # Imports
@@ -69,13 +69,11 @@ cat_params = {
     'learning_rate': 0.03,
     'bagging_temperature': 1,
 }
-ridge_params = {
-    'alpha': 2.35,
-}
 svr_params = {
-    'C': 0.08,
-    'epsilon': 0.12,
-    'kernel': 'rbf',
+    #'C': 5.0,
+    #'epsilon': 0.06,
+    'degree': 2,
+    'kernel': 'poly',
 }
 models = {
     'Linear Regression' : (
@@ -84,7 +82,7 @@ models = {
         'royalblue',
     ),
     'Ridge' : (
-        Ridge(),
+        Ridge(alpha=0.8),
         'ridge',
         'limegreen',
     ),
@@ -94,14 +92,15 @@ models = {
         'darkorange',
     ),
     'SVR Linear' : (
-        LinearSVR(),
+        LinearSVR(C=0.08, epsilon=0.06),
+        #LinearSVR(C=0.28, epsilon=0.06),
         'lin_svr',
         'purple',
     ),
     'CatBoost' : (
         cat.CatBoostRegressor(**cat_params),
         'catboost',
-        'grey',
+        'dimgrey',
     ),
     'Lasso' : (
         Lasso(),
@@ -113,15 +112,15 @@ models = {
         'ridgecv',
         'yellow',
     ),
-    'RidgeTmp' : (
-        Ridge(**ridge_params),
-        'ridge_tmp',
-        'green',
+    'SVR Poly' : (
+        SVR(kernel='poly'),# C=5.0),
+        'svr_poly',
+        'red',
     ),
     'SVRTmp' : (
         SVR(**svr_params),
         'svr_tmp',
-        'orange',
+        'green',
     ),
 }
 results_prefix = 'results_'
@@ -181,67 +180,63 @@ if __name__ == '__main__':
     results = {}
     if 'cv' in TESTS:
         results['cv'] = {}
-        if IMPORT_RESULTS:
-            for model_name in SELECTED_MODELS:
+        for model_name in IMPORT_MODELS:
+            results_file = \
+                results_prefix + 'cv_' + models[model_name][1] + '.npy'
+            results['cv'][model_name] = np.load(
+                results_file,
+                allow_pickle=True,
+            )
+        for model_name in RUN_MODELS:
+            results['cv'][model_name] = ([], [])
+            jobs = None if model_name == 'CatBoost' else -1
+            for idx, distribution in enumerate(distributions):
+                result = evaluate.cross_validate_model(
+                    models[model_name][0],
+                    vectors,
+                    targets[idx],
+                    is_classification=False,
+                    splits=SPLITS,
+                    jobs=jobs,
+                )
+                results['cv'][model_name][0].append(result[0])
+                results['cv'][model_name][1].append(result[1])
+
+            if SAVE_RESULTS:
                 results_file = \
                     results_prefix + 'cv_' + models[model_name][1] + '.npy'
-                results['cv'][model_name] = np.load(
-                    results_file,
-                    allow_pickle=True,
-                )
-        else:
-            for model_name in SELECTED_MODELS:
-                results['cv'][model_name] = ([], [])
-                jobs = None if model_name == 'CatBoost' else -1
-                for idx, distribution in enumerate(distributions):
-                    result = evaluate.cross_validate_model(
-                        models[model_name][0],
-                        vectors,
-                        targets[idx],
-                        is_classification=False,
-                        splits=5,
-                        jobs=jobs,
-                    )
-                    results['cv'][model_name][0].append(result[0])
-                    results['cv'][model_name][1].append(result[1])
-
-                if SAVE_RESULTS:
-                    results_file = \
-                        results_prefix + 'cv_' + models[model_name][1] + '.npy'
-                    np.save(results_file, results['cv'][model_name])
+                np.save(results_file, results['cv'][model_name])
 
     if 'test' in TESTS:
         results['test'] = {}
-        if IMPORT_RESULTS:
-            for model_name in SELECTED_MODELS:
-                results_file = \
-                    results_prefix + 'test_' + models[model_name][1] + '.npy'
-                results['test'][model_name] = np.load(
-                    results_file,
-                    allow_pickle=True,
+        for model_name in IMPORT_MODELS:
+            results_file = \
+                results_prefix + 'test_' + models[model_name][1] + '.npy'
+            results['test'][model_name] = np.load(
+                results_file,
+                allow_pickle=True,
+            )
+        for model_name in RUN_MODELS:
+            results['test'][model_name] = ([], [])
+            for idx, distribution in enumerate(distributions):
+                result = evaluate.test_model(
+                    models[model_name][0],
+                    vectors,
+                    targets[idx],
+                    test_vectors,
+                    test_targets[idx],
+                    is_classification=False,
                 )
-        else:
-            for model_name in SELECTED_MODELS:
-                results['test'][model_name] = ([], [])
-                for idx, distribution in enumerate(distributions):
-                    result = evaluate.test_model(
-                        models[model_name][0],
-                        vectors,
-                        targets[idx],
-                        test_vectors,
-                        test_targets[idx],
-                        is_classification=False,
-                    )
-                    results['test'][model_name][0].append(result[0])
-                    results['test'][model_name][1].append(result[1])
+                results['test'][model_name][0].append(result[0])
+                results['test'][model_name][1].append(result[1])
 
-                if SAVE_RESULTS:
-                    results_file = \
-                        results_prefix +'test_'+ models[model_name][1] + '.npy'
-                    np.save(results_file, results['test'][model_name])
+            if SAVE_RESULTS:
+                results_file = \
+                    results_prefix +'test_'+ models[model_name][1] + '.npy'
+                np.save(results_file, results['test'][model_name])
 
     if PRINT_RESULTS:
-        for model_name in SELECTED_MODELS:
+        for model_name in IMPORT_MODELS + RUN_MODELS:
             print(f'\nModel: {model_name}')
             print('CV')
             print(f'KLs\t\t\tR2\t\t\tRMSE')
@@ -263,7 +258,7 @@ if __name__ == '__main__':
 
     if PLOT_RESULTS:
         def plot_test(plot_r2, plot_rmse, test):
-            for model_name in SELECTED_MODELS:
+            for model_name in IMPORT_MODELS + RUN_MODELS:
                 plot_r2.plot(KLs,
                     results[test][model_name][0],
                     label=model_name,
@@ -291,7 +286,6 @@ if __name__ == '__main__':
             else:
                 plot_r2.set_title('Test Set Performance')
             plot_rmse.set_xlabel('$D_{KL}$')
-            #plot_r2.set_yticks(CV_YTICKS)
             plot_r2.yaxis.set_major_locator(r2_tick_locator)
             plot_rmse.yaxis.set_major_locator(rmse_tick_locator)
             plot_r2.grid('both')
@@ -311,7 +305,7 @@ if __name__ == '__main__':
         else:
             plot_test(ax11, ax12, TESTS[0])
 
-        plt.legend()#fontsize='small')
+        plt.legend(fontsize='small')
         plt.tight_layout()
         plt.show()
 
